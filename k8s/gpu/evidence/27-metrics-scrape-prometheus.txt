@@ -1,0 +1,64 @@
+### /metrics straight from the pod (selection)
+vllm:num_requests_running{engine="0",model_name="qwen3-4b"} 0.0
+vllm:num_requests_waiting{engine="0",model_name="qwen3-4b"} 0.0
+vllm:num_requests_waiting_by_reason{engine="0",model_name="qwen3-4b",reason="capacity"} 0.0
+vllm:num_requests_waiting_by_reason{engine="0",model_name="qwen3-4b",reason="deferred"} 0.0
+vllm:kv_cache_usage_perc{engine="0",model_name="qwen3-4b"} 0.0
+vllm:prefix_cache_queries_total{engine="0",model_name="qwen3-4b"} 386.0
+vllm:prefix_cache_hits_total{engine="0",model_name="qwen3-4b"} 176.0
+vllm:prompt_tokens_total{engine="0",model_name="qwen3-4b"} 386.0
+vllm:generation_tokens_total{engine="0",model_name="qwen3-4b"} 1714.0
+vllm:request_success_total{engine="0",finished_reason="stop",model_name="qwen3-4b"} 18.0
+vllm:request_success_total{engine="0",finished_reason="length",model_name="qwen3-4b"} 3.0
+vllm:request_success_total{engine="0",finished_reason="abort",model_name="qwen3-4b"} 0.0
+vllm:request_success_total{engine="0",finished_reason="error",model_name="qwen3-4b"} 0.0
+vllm:request_success_total{engine="0",finished_reason="repetition",model_name="qwen3-4b"} 0.0
+vllm:time_to_first_token_seconds_count{engine="0",model_name="qwen3-4b"} 21.0
+vllm:time_to_first_token_seconds_sum{engine="0",model_name="qwen3-4b"} 4.54480242729187
+vllm:e2e_request_latency_seconds_count{engine="0",model_name="qwen3-4b"} 21.0
+
+
+$ helm --kube-context kind-lab upgrade vllm charts/vllm-gpu -n gpu-lab --reuse-values --set serviceMonitor.enabled=true
+Release "vllm" has been upgraded. Happy Helming!
+NAME: vllm
+LAST DEPLOYED: Tue Nov  3 07:18:56 2026
+NAMESPACE: gpu-lab
+STATUS: deployed
+REVISION: 3
+DESCRIPTION: Upgrade complete
+TEST SUITE: None
+NOTES:
+vLLM (qwen3-4b) requests 1 x nvidia.com/gpu.
+Start-up takes minutes (load + torch.compile + CUDA graphs):  kubectl -n gpu-lab logs -f deploy/vllm
+Talk to it:   kubectl -n gpu-lab port-forward svc/vllm 18200:8000
+              curl localhost:18200/v1/chat/completions -H 'content-type: application/json' \
+                -d '{"model":"qwen3-4b","messages":[{"role":"user","content":"hi"}]}'
+spec:
+  endpoints:
+  - interval: 15s
+    path: /metrics
+    port: http
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: vllm
+      app.kubernetes.io/name: vllm-gpu
+
+### generate some traffic so rate() has data
+
+### Prometheus target for gpu-lab
+   gpu-lab vllm-799b7f58d9-6d78v up http://10.244.1.42:8000/metrics 0.007194008
+
+$ PromQL: up{namespace="gpu-lab"}
+   {'__name__': 'up', 'namespace': 'gpu-lab', 'pod': 'vllm-799b7f58d9-6d78v', 'service': 'vllm'} => 1
+
+$ PromQL: vllm:num_requests_running
+   {'__name__': 'vllm:num_requests_running', 'engine': '0', 'model_name': 'qwen3-4b', 'namespace': 'gpu-lab', 'pod': 'vllm-799b7f58d9-6d78v', 'service': 'vllm'} => 0
+
+$ PromQL: sum(vllm:generation_tokens_total)
+   {} => 2735
+
+$ PromQL: sum(rate(vllm:generation_tokens_total[1m]))
+   {} => 22.688888888888886
+
+$ PromQL: sum(vllm:time_to_first_token_seconds_sum) / sum(vllm:time_to_first_token_seconds_count)
+   {} => 0.28693616028988

@@ -1,0 +1,5 @@
+vLLM ({{ .Values.model.servedName }}) requests {{ .Values.gpu.count }} x {{ .Values.gpu.resourceName }}.
+Start-up takes minutes (load + torch.compile + CUDA graphs):  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ .Release.Name }}
+Talk to it:   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }} 18200:{{ .Values.service.port }}
+              curl localhost:18200/v1/chat/completions -H 'content-type: application/json' \
+                -d '{"model":"{{ .Values.model.servedName }}","messages":[{"role":"user","content":"hi"}]}'

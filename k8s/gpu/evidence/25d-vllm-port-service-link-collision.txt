@@ -1,0 +1,31 @@
+# vLLM crash #3: Kubernetes service-link env vars collide with vLLM's own VLLM_PORT setting
+# Happens at the END of start-up (after weights + torch.compile), so it costs minutes per attempt.
+
+$ kubectl get pod
+NAME                    READY   STATUS    RESTARTS      AGE
+vllm-5cb89c74fc-779wk   0/1     Running   1 (42s ago)   4m36s
+
+$ kubectl logs deploy/vllm --previous | grep VLLM_PORT
+Unknown vLLM environment variable detected: VLLM_PORT_8000_TCP
+Unknown vLLM environment variable detected: VLLM_PORT_8000_TCP_ADDR
+Unknown vLLM environment variable detected: VLLM_PORT_8000_TCP_PORT
+Unknown vLLM environment variable detected: VLLM_PORT_8000_TCP_PROTO
+ValueError: VLLM_PORT 'tcp://10.96.245.105:8000' appears to be a URI. This may be caused by a Kubernetes service discovery issue,check the warning in: https://docs.vllm.ai/en/latest/configuration/env_vars.html
+
+$ kubectl exec <pod> -- env | grep VLLM_   (what the kubelet injected: one set of env vars per Service in the namespace)
+VLLM_SERVICE_PORT=8000
+VLLM_SERVICE_PORT_HTTP=8000
+VLLM_PORT_8000_TCP_PROTO=tcp
+VLLM_PORT=tcp://10.96.245.105:8000
+VLLM_SERVICE_HOST=10.96.245.105
+VLLM_PORT_8000_TCP=tcp://10.96.245.105:8000
+VLLM_PORT_8000_TCP_PORT=8000
+VLLM_PORT_8000_TCP_ADDR=10.96.245.105
+
+$ kubectl get svc
+NAME   TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+vllm   ClusterIP   10.96.245.105   <none>        8000/TCP   4m36s
+
+# cause: the Service is named "vllm" -> kubelet sets VLLM_SERVICE_HOST, VLLM_SERVICE_PORT, VLLM_PORT=tcp://<clusterIP>:8000 ...
+# vLLM reads the env var VLLM_PORT as an integer port for its internal ZMQ/engine sockets.
+# fix: enableServiceLinks: false in the pod spec (or never name a Service vllm). Renaming the Service would also work.

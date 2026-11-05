@@ -1,0 +1,46 @@
+### ./down.sh
+release "vllm" uninstalled
+pod "vllm-799b7f58d9-kkqsm" deleted from gpu-lab namespace
+GPU memory now:
+pid, used_gpu_memory [MiB]
+2493, 36200 MiB
+2489, 21243 MiB
+2782092, 16039 MiB
+3758792, 13341 MiB
+
+### verify
+
+$ kubectl --context kind-lab -n gpu-lab get pods,svc,deploy
+No resources found in gpu-lab namespace.
+
+$ helm --kube-context kind-lab list -A
+NAME          	NAMESPACE           	REVISION	UPDATED                                	STATUS  	CHART                        	APP VERSION
+kps           	monitoring          	1       	2026-11-02 21:18:12.386227671 +0300 +03	deployed	kube-prometheus-stack-92.17.0	v0.94.2    
+metrics-server	kube-system         	2       	2026-11-02 19:43:51.270948322 +0300 +03	deployed	metrics-server-3.14.0        	0.9.0      
+nvdp          	nvidia-device-plugin	13      	2026-11-03 07:32:43.80473215 +0300 +03 	deployed	nvidia-device-plugin-0.20.1  	0.20.1     
+lab     	rag                 	11      	2026-11-02 19:44:05.41516007 +0300 +03 	deployed	lab-0.1.0              	0.1        
+
+$ kubectl --context kind-lab get node lab-worker2 -o custom-columns=NODE:.metadata.name,GPU-ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
+NODE                GPU-ALLOCATABLE
+lab-worker2   1
+  Resource           Requests     Limits
+  nvidia.com/gpu     0            0
+
+$ nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv
+pid, process_name, used_gpu_memory [MiB]
+2493, /opt/llama.cpp/build/bin/llama-server, 36200 MiB
+2489, /opt/llama.cpp/build/bin/llama-server, 21243 MiB
+2782092, python, 16039 MiB
+
+$ free -g
+               total        used        free      shared  buff/cache   available
+Mem:             121          95          23           4           8          26
+Swap:             15           7           8
+
+### the other workload on this cluster (namespace rag, not part of this repository) is untouched
+
+$ kubectl --context kind-lab -n rag get pods
+NAME                               READY   STATUS      RESTARTS        AGE
+lab-embed-64d494597f-jzmfm   1/1     Running     1 (7h59m ago)   9h
+lab-ingest-32e469c9-s7wxv    0/1     Completed   0               12h
+lab-qdrant-0                 1/1     Running     2 (11h ago)     12h

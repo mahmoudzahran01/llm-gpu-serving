@@ -1,0 +1,48 @@
+== 1. preflight
+GPU 0: NVIDIA GB10 (UUID: GPU-72c8f06b-2c1c-b4e0-2ad9-3783d67e6d61)
+== 2. images into node lab-worker2
+== 3. node: driver files, weights, label, permissions
+== 1. driver files -> lab-worker2:/opt/nvidia-driver
+driver files copied: 66
+size: 857M
+== 2. model weights -> lab-worker2:/models/Qwen3-4B-Instruct-2507
+already there
+7.6G	/models/Qwen3-4B-Instruct-2507
+== 3. label the node
+node/lab-worker2 not labeled
+== 4. let the NON-ROOT device plugin write its socket and CDI spec on the node
+== 4. NVIDIA device plugin 0.20.1
+Release "nvdp" has been upgraded. Happy Helming!
+NAME: nvdp
+LAST DEPLOYED: Tue Nov  3 07:32:43 2026
+NAMESPACE: nvidia-device-plugin
+STATUS: deployed
+REVISION: 13
+DESCRIPTION: Upgrade complete
+TEST SUITE: None
+                    nvidia.com/gpu.present=true
+  nvidia.com/gpu:     1
+  nvidia.com/gpu:     1
+  nvidia.com/gpu     0            0
+== 5. vLLM (needs ~15 GB of the shared unified memory)
+memory ok: 25 GB available (need 25)
+Release "vllm" does not exist. Installing it now.
+NAME: vllm
+LAST DEPLOYED: Tue Nov  3 07:32:44 2026
+NAMESPACE: gpu-lab
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+vLLM (qwen3-4b) requests 1 x nvidia.com/gpu.
+Start-up takes minutes (load + torch.compile + CUDA graphs):  kubectl -n gpu-lab logs -f deploy/vllm
+Talk to it:   kubectl -n gpu-lab port-forward svc/vllm 18200:8000
+              curl localhost:18200/v1/chat/completions -H 'content-type: application/json' \
+                -d '{"model":"qwen3-4b","messages":[{"role":"user","content":"hi"}]}'
+NAME                        READY   STATUS    RESTARTS   AGE    IP            NODE                NOMINATED NODE   READINESS GATES
+pod/vllm-799b7f58d9-kkqsm   1/1     Running   0          4m1s   10.244.1.51   lab-worker2   <none>           <none>
+
+NAME           TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE    SELECTOR
+service/vllm   ClusterIP   10.96.54.129   <none>        8000/TCP   4m1s   app.kubernetes.io/instance=vllm,app.kubernetes.io/name=vllm-gpu
+Try:  kubectl --context kind-lab -n gpu-lab port-forward svc/vllm 18200:8000   then   curl localhost:18200/v1/models

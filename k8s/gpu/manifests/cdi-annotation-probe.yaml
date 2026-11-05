@@ -1,0 +1,17 @@
+# CRI-O style CDI request: an annotation names a CDI device. NO nvidia.com/gpu limit on purpose.
+# If containerd honoured this, any pod could take the GPU without going through the scheduler's accounting.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cdi-annotation-probe
+  namespace: gpu-lab
+  annotations:
+    cdi.k8s.io/probe: nvidia.com/gpu=all
+spec:
+  restartPolicy: Never
+  nodeSelector: {nvidia.com/gpu.present: "true"}
+  containers:
+  - name: c
+    image: nvcr.io/nvidia/cuda:13.0.0-base-ubuntu24.04
+    imagePullPolicy: IfNotPresent
+    command: ["sh", "-c", "ls -l /dev/nvidia* 2>&1; which nvidia-smi || echo 'no nvidia-smi'"]

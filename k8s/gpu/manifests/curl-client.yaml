@@ -1,0 +1,11 @@
+# A throw-away in-cluster client: proves the Service DNS name works from another pod (not only port-forward).
+apiVersion: v1
+kind: Pod
+metadata: {name: client, namespace: gpu-lab, labels: {app: client}}
+spec:
+  restartPolicy: Never
+  containers:
+  - name: c
+    image: curlimages/curl:8.11.1
+    command: ["sleep", "3600"]
+    resources: {requests: {cpu: 10m, memory: 16Mi}}

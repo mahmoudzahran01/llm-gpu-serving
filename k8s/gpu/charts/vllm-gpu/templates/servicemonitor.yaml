@@ -1,0 +1,16 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: vllm-gpu
+    {{- toYaml .Values.serviceMonitor.labels | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-gpu
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - {port: http, path: /metrics, interval: {{ .Values.serviceMonitor.interval }}}
+{{- end }}

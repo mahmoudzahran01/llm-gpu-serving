@@ -1,0 +1,14 @@
+# Asks for 2 GPUs on a cluster whose only GPU node has 1. The scheduler cannot place it: the pod stays Pending
+# and the FailedScheduling event names the missing resource. Extended resources are integers, never overcommitted.
+apiVersion: v1
+kind: Pod
+metadata: {name: wants-two-gpus, namespace: gpu-lab, labels: {app: smoke}}
+spec:
+  restartPolicy: Never
+  containers:
+  - name: c
+    image: nvcr.io/nvidia/cuda:13.0.0-base-ubuntu24.04
+    imagePullPolicy: IfNotPresent
+    command: ["nvidia-smi", "-L"]
+    resources:
+      limits: {nvidia.com/gpu: 2}

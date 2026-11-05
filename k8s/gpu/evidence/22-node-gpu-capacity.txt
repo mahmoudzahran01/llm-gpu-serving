@@ -1,0 +1,68 @@
+### host view
+
+$ nvidia-smi -L
+GPU 0: NVIDIA GB10 (UUID: GPU-72c8f06b-2c1c-b4e0-2ad9-3783d67e6d61)
+
+$ kubectl --context kind-lab get nodes -o custom-columns=NODE:.metadata.name,GPU-CAPACITY:.status.capacity.nvidia\.com/gpu,GPU-ALLOCATABLE:.status.allocatable.nvidia\.com/gpu,GPU-LABEL:.metadata.labels.nvidia\.com/gpu\.present
+NODE                      GPU-CAPACITY   GPU-ALLOCATABLE   GPU-LABEL
+lab-control-plane   <none>         <none>            <none>
+lab-worker          <none>         <none>            <none>
+lab-worker2         1              1                 true
+
+$ kubectl describe node lab-worker2   (Capacity / Allocatable / Allocated resources)
+Capacity:
+  cpu:                20
+  ephemeral-storage:  4031871553536
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  hugepages-32Mi:     0
+  hugepages-64Ki:     0
+  memory:             127600748Ki
+  nvidia.com/gpu:     1
+  pods:               110
+Allocatable:
+  cpu:                20
+  ephemeral-storage:  4031871553536
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  hugepages-32Mi:     0
+  hugepages-64Ki:     0
+  memory:             127600748Ki
+  nvidia.com/gpu:     1
+  pods:               110
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests       Limits
+  --------           --------       ------
+  cpu                4470m (22%)    1 (5%)
+  memory             13562Mi (10%)  43200Mi (34%)
+  ephemeral-storage  0 (0%)         0 (0%)
+  hugepages-1Gi      0 (0%)         0 (0%)
+  hugepages-2Mi      0 (0%)         0 (0%)
+  hugepages-32Mi     0 (0%)         0 (0%)
+  hugepages-64Ki     0 (0%)         0 (0%)
+  nvidia.com/gpu     1              1
+
+### what the plugin wrote for containerd (CDI spec, abridged) - this is how a pod gets /dev/nvidia0 and libcuda
+
+$ docker exec lab-worker2 ls -l /var/run/cdi
+total 16
+-rw-r--r-- 1 nobody nogroup 14529 Nov  3 04:30 k8s.device-plugin.nvidia.com-gpu.json
+{"cdiVersion":"0.7.0","kind":"k8s.device-plugin.nvidia.com/gpu","devices":[{"name":"GPU-72c8f06b-2c1c-b4e0-2ad9-3783d67e6d61","containerEdits":{"deviceNodes":[{"path":"/dev/nvidia0","hostPath":"/dev/nvidia0","major":195,"fileMode":438,"permissions":"rwm"},{"path":"/dev/dri/card0","hostPath":"/dev/dri/card0","major":226,"fileMode":432,"permissions":"rwm","gid":44},{"path":"/dev/dri/renderD128","hostPath":"/dev/dri/renderD128","major":226,"minor":128,"fileMode":432,"permissions":"rwm","gid":993}],"hooks":[{"hookName":"createRuntime","path":"/opt/nvidia-driver/usr/bin/nvidia-cdi-hook","args":["nvidia-cdi-hook","apply-cuda-memory-limits","--driver-root","/opt/nvidia-driver","--gpu-id","GPU-72c8f
+ ...
+
+### the same node's kubelet device-manager view
+
+$ kubectl --context kind-lab -n nvidia-device-plugin get ds,pods -o wide
+NAME                                                          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                 AGE   CONTAINERS                 IMAGES                                     SELECTOR
+daemonset.apps/nvdp-nvidia-device-plugin                      1         1         1       1            1           <none>                        67m   nvidia-device-plugin-ctr   nvcr.io/nvidia/k8s-device-plugin:v0.20.1   app.kubernetes.io/instance=nvdp,app.kubernetes.io/name=nvidia-device-plugin
+daemonset.apps/nvdp-nvidia-device-plugin-mps-control-daemon   0         0         0       0            0           nvidia.com/mps.capable=true   67m   mps-control-daemon-ctr     nvcr.io/nvidia/k8s-device-plugin:v0.20.1   app.kubernetes.io/instance=nvdp,app.kubernetes.io/name=nvidia-device-plugin
+
+NAME                                  READY   STATUS    RESTARTS   AGE     IP            NODE                NOMINATED NODE   READINESS GATES
+pod/nvdp-nvidia-device-plugin-w59xn   1/1     Running   0          7m46s   10.244.1.50   lab-worker2   <none>           <none>
+
+### GB10 / unified-memory notes
+$ nvidia-smi --query-gpu=name,memory.total,memory.used --format=csv
+name, memory.total [MiB], memory.used [MiB]
+NVIDIA GB10, [N/A], [N/A]
+(memory columns are [N/A]: NVML cannot split unified memory; the device plugin does not need it - it only counts devices.)

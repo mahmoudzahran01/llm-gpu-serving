@@ -1,0 +1,32 @@
+# MINIMAL kube-prometheus-stack for namespace `monitoring` (used by scripts/demo-27-metrics.sh): just the Prometheus
+# Operator and one Prometheus. No Grafana / Alertmanager / node-exporter / kube-state-metrics (the host-side stack in
+# ../../obs already has those). Purpose: show the in-cluster, declarative pattern - a ServiceMonitor says "scrape every
+# Service that looks like this" and the operator turns it into Prometheus config.
+#   helm install kps prometheus-community/kube-prometheus-stack -n monitoring --create-namespace -f monitoring/kube-prometheus-values.yaml
+fullnameOverride: kps
+defaultRules: {create: false}
+alertmanager: {enabled: false}
+grafana: {enabled: false}
+nodeExporter: {enabled: false}
+kubeStateMetrics: {enabled: false}
+kubeApiServer: {enabled: false}
+kubelet: {enabled: false}
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}
+kubeProxy: {enabled: false}
+kubeEtcd: {enabled: false}
+coreDns: {enabled: false}
+prometheusOperator:
+  admissionWebhooks: {enabled: false}   # skip the cert-gen jobs: not needed on a lab cluster
+  tls: {enabled: false}
+  resources: {requests: {cpu: 20m, memory: 64Mi}, limits: {memory: 192Mi}}
+prometheus:
+  prometheusSpec:
+    retention: 6h
+    scrapeInterval: 10s
+    routePrefix: /prom                   # demo-27 queries http://localhost:19191/prom/api/v1/...
+    serviceMonitorSelectorNilUsesHelmValues: false   # pick up ServiceMonitors from ANY release/namespace
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    resources: {requests: {cpu: 50m, memory: 192Mi}, limits: {memory: 512Mi}}
+    storageSpec: {}                      # emptyDir: lab data, not worth a PVC

@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels: &labels
+    app.kubernetes.io/name: vllm-gpu
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-gpu
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels: *labels
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      # Kubernetes injects env vars for every Service in the namespace. Our Service is called "vllm", so without this
+      # the pod gets VLLM_PORT=tcp://10.96.x.x:8000, which vLLM reads as ITS OWN setting and aborts (evidence/25d).
+      enableServiceLinks: false
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: vllm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # NO `command:` on purpose. `command` replaces the image ENTRYPOINT; NVIDIA's entrypoint
+          # (nvidia_entrypoint.sh) sets up CUDA forward compatibility, without which this CUDA 13.4 image cannot
+          # JIT kernels on the host's 580 driver (evidence/25c). `args` only replaces CMD, like `docker run IMAGE vllm serve ...`.
+          args:
+            - vllm
+            - serve
+            - {{ .Values.model.mountPath }}
+            - --served-model-name={{ .Values.model.servedName }}
+            - --host=0.0.0.0
+            - --port=8000
+            - --max-model-len={{ .Values.vllm.maxModelLen }}
+            - --kv-cache-memory={{ int64 .Values.vllm.kvCacheMemoryBytes }}
+            - --gpu-memory-utilization={{ .Values.vllm.gpuMemoryUtilization }}
+            {{- if .Values.vllm.enablePrefixCaching }}
+            - --enable-prefix-caching
+            {{- end }}
+            {{- range .Values.vllm.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          env:
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - {name: VLLM_CACHE_ROOT, value: /cache/vllm}        # torch.compile artefacts survive pod restarts (hostPath)
+            - {name: TORCHINDUCTOR_CACHE_DIR, value: /cache/inductor}
+            - {name: TRITON_CACHE_DIR, value: /cache/triton}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - {name: http, containerPort: 8000}
+          resources:
+            requests:
+              {{- toYaml .Values.resources.requests | nindent 14 }}
+            limits:
+              {{- toYaml .Values.resources.limits | nindent 14 }}
+              {{ .Values.gpu.resourceName }}: {{ .Values.gpu.count }}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            {{- toYaml .Values.probes.startup | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            {{- toYaml .Values.probes.readiness | nindent 12 }}
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            {{- toYaml .Values.probes.liveness | nindent 12 }}
+          volumeMounts:
+            - {name: model, mountPath: {{ .Values.model.mountPath }}, readOnly: true}
+            - {name: cache, mountPath: /cache}
+            - {name: shm, mountPath: /dev/shm}
+      volumes:
+        - name: model
+          hostPath: {path: {{ .Values.model.hostPath }}, type: Directory}
+        - name: cache
+          hostPath: {path: /var/cache/vllm, type: DirectoryOrCreate}
+        - name: shm
+          emptyDir: {medium: Memory, sizeLimit: {{ .Values.shm.sizeLimit }}}

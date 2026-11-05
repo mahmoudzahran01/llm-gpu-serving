@@ -1,0 +1,18 @@
+# Same image and command, but NO nvidia.com/gpu request. Even if it lands on the GPU node it gets no device.
+# (This is the isolation guarantee of the device-plugin model; contrast with a privileged pod or an
+# nvidia-runtime cluster with NVIDIA_VISIBLE_DEVICES=all in the image, where any pod can grab the GPU.)
+apiVersion: v1
+kind: Pod
+metadata: {name: smoke-no-gpu, namespace: gpu-lab, labels: {app: smoke}}
+spec:
+  restartPolicy: Never
+  nodeSelector: {nvidia.com/gpu.present: "true"}      # force it onto the GPU node to make the point
+  containers:
+  - name: c
+    image: nvcr.io/nvidia/cuda:13.0.0-base-ubuntu24.04
+    imagePullPolicy: IfNotPresent
+    command: ["sh", "-c"]
+    args:
+    - |
+      echo "--- devices visible in the container"; ls -l /dev/nvidia* 2>&1 || true
+      echo "--- nvidia-smi";                        nvidia-smi 2>&1 | head -3 || true

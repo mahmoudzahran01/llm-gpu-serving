@@ -1,0 +1,20 @@
+# A pod that REQUESTS one GPU. The scheduler places it on a node with allocatable nvidia.com/gpu >= 1; kubelet asks
+# the device plugin to Allocate; the plugin answers with a CDI device name; containerd injects /dev/nvidia*,
+# libcuda, nvidia-smi. Nothing else in the pod spec mentions the GPU.
+apiVersion: v1
+kind: Pod
+metadata: {name: smoke-gpu, namespace: gpu-lab, labels: {app: smoke}}
+spec:
+  restartPolicy: Never
+  containers:
+  - name: c
+    image: nvcr.io/nvidia/cuda:13.0.0-base-ubuntu24.04
+    imagePullPolicy: IfNotPresent
+    command: ["sh", "-c"]
+    args:
+    - |
+      echo "--- devices visible in the container"; ls -l /dev/nvidia*
+      echo "--- nvidia-smi -L";                     nvidia-smi -L
+      echo "--- env";                               env | grep -i nvidia | cut -c1-80 || echo "(no NVIDIA_* env vars: no nvidia runtime involved)"
+    resources:
+      limits: {nvidia.com/gpu: 1}

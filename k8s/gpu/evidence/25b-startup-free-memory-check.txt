@@ -1,0 +1,30 @@
+# Why the vLLM pod shows RESTARTS 2 before it became Ready (evidence/25).
+# The first two container starts died in vLLM's start-up free-memory check; Kubernetes restarted them (restartPolicy Always, CrashLoopBackOff) and the 3rd start passed once other tenants had released a little memory.
+
+$ kubectl get pod
+NAME                   READY   STATUS    RESTARTS       AGE
+vllm-cb5dff46d-pv9b7   0/1     Running   2 (114s ago)   3m40s
+
+$ kubectl get pod -o jsonpath=lastState
+{"terminated":{"containerID":"containerd://031e9c6e5b016109650e969c8fc5af661d8efab70205fe1fdf43743b04c68e38","exitCode":1,"finishedAt":"2026-11-03T03:48:03Z","reason":"Error","startedAt":"2026-11-03T03:47:19Z"}}
+
+$ kubectl logs deploy/vllm --previous | grep -E "non-default args|ValueError"
+non-default args: {'model_tag': '/model', 'host': '0.0.0.0', 'model': '/model', 'max_model_len': 4096, 'served_model_name': ['qwen3-4b'], 'gpu_memory_utilization': 0.2, 'kv_cache_memory_bytes': 4294967296, 'enable_prefix_caching': True}
+    raise ValueError(
+ValueError: Free memory on device cuda:0 (24.15/121.69 GiB) on startup is less than desired GPU memory utilization (0.2, 24.34 GiB). Decrease GPU memory utilization or reduce GPU memory used by other processes.
+    raise ValueError(
+ValueError: Free memory on device cuda:0 (24.15/121.69 GiB) on startup is less than desired GPU memory utilization (0.2, 24.34 GiB). Decrease GPU memory utilization or reduce GPU memory used by other processes.
+
+$ kubectl describe pod | Events
+Events:
+  Type     Reason     Age                   From               Message
+  ----     ------     ----                  ----               -------
+  Normal   Scheduled  3m40s                 default-scheduler  Successfully assigned gpu-lab/vllm-cb5dff46d-pv9b7 to lab-worker2
+  Warning  BackOff    110s (x2 over 113s)   kubelet            spec.containers{vllm}: Back-off restarting failed container vllm in pod vllm-cb5dff46d-pv9b7_gpu-lab(6a9365ba-7ff3-472d-b6e5-efac8c230ee4)
+  Normal   Pulled     102s (x3 over 3m40s)  kubelet            spec.containers{vllm}: Container image "nvcr.io/nvidia/vllm:26.10-py3" already present on machine and can be accessed by the pod
+  Normal   Created    102s (x3 over 3m40s)  kubelet            spec.containers{vllm}: Container created
+  Normal   Started    102s (x3 over 3m39s)  kubelet            spec.containers{vllm}: Container started
+  Warning  Unhealthy  0s (x21 over 3m30s)   kubelet            spec.containers{vllm}: Startup probe failed: Get "http://10.244.1.38:8000/health": dial tcp 10.244.1.38:8000: connect: connection refused
+
+# arithmetic: 0.2 x 121.69 GiB = 24.34 GiB must be FREE at start-up, but the GPU tenants had left 24.15 GiB free.
+# --kv-cache-memory pins the KV cache at 4 GiB, so the real footprint is ~15 GiB, but the up-front check still uses gpu-memory-utilization x total.

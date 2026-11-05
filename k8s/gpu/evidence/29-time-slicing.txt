@@ -1,0 +1,84 @@
+### 0. stop vLLM so the GPU is free and idle for this experiment
+release "vllm" uninstalled
+allocatable nvidia.com/gpu = 1
+
+### 1. baseline, no time-slicing: ONE burner pod alone
+ts-a: sees NVIDIA GB10; free=23.3 GiB of total=121.7 GiB (whole unified memory, no per-pod cap)
+ts-a: 8920 matmuls in 45 s = 198/s
+
+### 2. same cluster, three pods at once WITHOUT time-slicing (capacity 1): a runs, b and c wait for the GPU
+
+$ kubectl --context kind-lab -n gpu-lab get pods -l app=timeslice -o wide
+NAME   READY   STATUS    RESTARTS   AGE   IP            NODE                NOMINATED NODE   READINESS GATES
+ts-a   1/1     Running   0          12s   10.244.1.45   lab-worker2   <none>           <none>
+ts-b   0/1     Pending   0          12s   <none>        <none>              <none>           <none>
+ts-c   0/1     Pending   0          12s   <none>        <none>              <none>           <none>
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  12s   default-scheduler  0/3 nodes are available: 1 Insufficient nvidia.com/gpu, 1 node(s) didn't match Pod's node affinity/selector, 1 node(s) had untolerated taint(s). preemption: 0/3 nodes are available: 1 No preemption victims found for incoming pod, 2 Preemption is not helpful for scheduling.
+
+### 3. enable time-slicing: replicas=2
+
+$ cat device-plugin/values-timeslicing.yaml
+# Layer on top of values.yaml:   helm upgrade nvdp nvdp/nvidia-device-plugin -f values.yaml -f values-timeslicing.yaml
+# Tells the device plugin to advertise ONE physical GPU as TWO schedulable "nvidia.com/gpu" units.
+# This is bookkeeping only: Kubernetes now allows 2 pods on the GPU, the driver time-slices their CUDA contexts,
+# and there is NO memory isolation and NO fairness/QoS between them (evidence/29).
+config:
+  default: timeslice2
+  map:
+    timeslice2: |-
+      version: v1
+      sharing:
+        timeSlicing:
+          failRequestsGreaterThanOne: true     # a pod asking for 2 slices would get 2 slots but no more compute: reject it
+          resources:
+            - name: nvidia.com/gpu
+              replicas: 2
+
+$ helm --kube-context kind-lab upgrade nvdp nvdp/nvidia-device-plugin --version 0.20.1 -n nvidia-device-plugin -f device-plugin/values.yaml -f device-plugin/values-timeslicing.yaml
+Release "nvdp" has been upgraded. Happy Helming!
+NAME: nvdp
+LAST DEPLOYED: Tue Nov  3 07:28:52 2026
+NAMESPACE: nvidia-device-plugin
+STATUS: deployed
+REVISION: 11
+DESCRIPTION: Upgrade complete
+TEST SUITE: None
+daemon set "nvdp-nvidia-device-plugin" successfully rolled out
+allocatable nvidia.com/gpu = 2   (one physical GPU)
+
+$ nvidia-smi -L
+GPU 0: NVIDIA GB10 (UUID: GPU-72c8f06b-2c1c-b4e0-2ad9-3783d67e6d61)
+  "sharing": {
+    "timeSlicing": {
+          "replicas": 2
+I1103 04:28:54.583696      53 server.go:149] Registered device plugin for 'nvidia.com/gpu' with Kubelet
+
+### 4. a, b, c at once: a and b share the physical GPU, c is Pending (2 slots)
+
+$ kubectl --context kind-lab -n gpu-lab get pods -l app=timeslice -o wide
+NAME   READY   STATUS    RESTARTS   AGE   IP            NODE                NOMINATED NODE   READINESS GATES
+ts-a   1/1     Running   0          25s   10.244.1.47   lab-worker2   <none>           <none>
+ts-b   1/1     Running   0          25s   10.244.1.48   lab-worker2   <none>           <none>
+ts-c   0/1     Pending   0          25s   <none>        <none>              <none>           <none>
+
+$ nvidia-smi --query-compute-apps=pid,used_memory  (host: two CUDA processes from two pods on ONE GPU, plus other tenants)
+pid, used_gpu_memory [MiB]
+2493, 36200 MiB
+2489, 21243 MiB
+2782092, 16039 MiB
+3723787, 1358 MiB
+3723943, 1358 MiB
+
+### 5. what each pod saw and got
+ts-a: sees NVIDIA GB10; free=22.4 GiB of total=121.7 GiB (whole unified memory, no per-pod cap)
+ts-a: 6480 matmuls in 45 s = 144/s
+ts-b: sees NVIDIA GB10; free=21.3 GiB of total=121.7 GiB (whole unified memory, no per-pod cap)
+ts-b: 6360 matmuls in 45 s = 141/s
+  Warning  FailedScheduling  53s   default-scheduler  0/3 nodes are available: 1 Insufficient nvidia.com/gpu, 1 node(s) didn't match Pod's node affinity/selector, 1 node(s) had untolerated taint(s). preemption: 0/3 nodes are available: 1 No preemption victims found for incoming pod, 2 Preemption is not helpful for scheduling.
+  Normal   Scheduled         0s    default-scheduler  Successfully assigned gpu-lab/ts-c to lab-worker2
+
+### 6. revert to one-GPU-one-pod
+daemon set "nvdp-nvidia-device-plugin" successfully rolled out
+allocatable nvidia.com/gpu = 1

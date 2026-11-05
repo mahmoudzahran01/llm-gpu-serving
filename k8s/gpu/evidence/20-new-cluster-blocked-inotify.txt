@@ -1,0 +1,48 @@
+$ sysctl fs.inotify.max_user_instances fs.inotify.max_user_watches
+fs.inotify.max_user_instances = 128
+fs.inotify.max_user_watches = 65536
+
+$ sudo -n true   (can I raise the limit?)
+sudo: a password is required
+
+$ kind create cluster --name lab-gpu-probe --retain   (kind v0.33, same node image as lab)
+Creating cluster "lab-gpu-probe" ...
+ • Ensuring node image (kindest/node:v1.37.0) 🖼️  ...
+ ✓ Ensuring node image (kindest/node:v1.37.0) 🖼️
+ • Preparing nodes 📦   ...
+ ✗ Preparing nodes 📦 
+ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
+
+$ docker logs lab-gpu-probe-control-plane | tail -6      # systemd (PID 1 of the node) dies at boot
+Welcome to Debian GNU/Linux 13 (trixie)!
+
+
+Failed to create control group inotify object: Too many open files
+
+Failed to allocate manager object: Too many open files
+
+[!!!!!!] Failed to allocate manager object.
+
+Exiting PID 1...
+
+
+== how many inotify instances can each uid still create right now? (inotify_init1 in a loop, capped at 20)
+uid 0     (every container root, kubelet, systemd-in-kind, containerd-shim...): 0 of 20
+uid 1000  (user):                                                          20 of 20
+uid 65534 (nobody):                                                            20 of 20
+
+== who holds uid-0 inotify instances? (read-only scan of /proc from a privileged helper)
+40 instances  40 procs  (udev-worker)  [host]
+20 instances  10 procs  containerd-shim  [lab-control-plane]
+16 instances  16 procs  containerd-shim  [host]
+10 instances  6 procs  containerd-shim  [lab-worker2]
+9 instances  1 procs  systemd  [host]
+7 instances  1 procs  kubelet  [lab-worker]
+7 instances  1 procs  kubelet  [lab-worker2]
+7 instances  1 procs  kubelet  [lab-control-plane]
+7 instances  1 procs  kube-controller  [lab-control-plane]
+6 instances  3 procs  containerd-shim  [lab-worker]
+6 instances  1 procs  kube-apiserver  [lab-control-plane]
+4 instances  1 procs  systemd  [lab-worker]
+4 instances  1 procs  systemd  [lab-worker2]
+4 instances  1 procs  systemd  [lab-control-plane]

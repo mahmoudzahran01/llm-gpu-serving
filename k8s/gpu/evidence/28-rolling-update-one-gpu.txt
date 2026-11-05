@@ -1,0 +1,106 @@
+### 0. before: strategy in the Deployment
+
+$ kubectl --context kind-lab -n gpu-lab get deploy vllm -o jsonpath={.spec.strategy}{"\n"}
+{"rollingUpdate":{"maxSurge":0,"maxUnavailable":1},"type":"RollingUpdate"}
+
+$ kubectl --context kind-lab -n gpu-lab get pods -l app.kubernetes.io/name=vllm-gpu -o wide
+NAME                    READY   STATUS    RESTARTS   AGE   IP            NODE                NOMINATED NODE   READINESS GATES
+vllm-799b7f58d9-6d78v   1/1     Running   0          12m   10.244.1.42   lab-worker2   <none>           <none>
+
+### 1. roll out a new revision with the Kubernetes DEFAULT strategy (maxSurge 25% -> 1, maxUnavailable 25% -> 0)
+(the change is only a pod annotation: any pod-template change creates a new ReplicaSet, e.g. a new image tag or flag)
+
+$ helm --kube-context kind-lab upgrade vllm charts/vllm-gpu -n gpu-lab --reuse-values --set podAnnotations.rollout=v2 --set strategy.rollingUpdate.maxSurge=1 --set strategy.rollingUpdate.maxUnavailable=0
+Release "vllm" has been upgraded. Happy Helming!
+NAME: vllm
+LAST DEPLOYED: Tue Nov  3 07:19:42 2026
+NAMESPACE: gpu-lab
+STATUS: deployed
+REVISION: 4
+DESCRIPTION: Upgrade complete
+TEST SUITE: None
+NOTES:
+vLLM (qwen3-4b) requests 1 x nvidia.com/gpu.
+Start-up takes minutes (load + torch.compile + CUDA graphs):  kubectl -n gpu-lab logs -f deploy/vllm
+Talk to it:   kubectl -n gpu-lab port-forward svc/vllm 18200:8000
+              curl localhost:18200/v1/chat/completions -H 'content-type: application/json' \
+                -d '{"model":"qwen3-4b","messages":[{"role":"user","content":"hi"}]}'
+
+$ kubectl --context kind-lab -n gpu-lab get pods -l app.kubernetes.io/name=vllm-gpu -o wide
+NAME                    READY   STATUS    RESTARTS   AGE   IP            NODE                NOMINATED NODE   READINESS GATES
+vllm-767f8cb995-p4wp6   0/1     Pending   0          45s   <none>        <none>              <none>           <none>
+vllm-799b7f58d9-6d78v   1/1     Running   0          13m   10.244.1.42   lab-worker2   <none>           <none>
+
+$ kubectl --context kind-lab -n gpu-lab get rs -l app.kubernetes.io/name=vllm-gpu
+NAME              DESIRED   CURRENT   READY   AGE
+vllm-767f8cb995   1         1         0       45s
+vllm-799b7f58d9   1         1         1       13m
+
+$ kubectl describe pod <new pod> | Events
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  45s   default-scheduler  0/3 nodes are available: 1 Insufficient nvidia.com/gpu, 1 node(s) didn't match Pod's node affinity/selector, 1 node(s) had untolerated taint(s). preemption: 0/3 nodes are available: 1 No preemption victims found for incoming pod, 2 Preemption is not helpful for scheduling.
+$ kubectl rollout status deploy/vllm --timeout=30s
+Waiting for deployment "vllm" rollout to finish: 1 old replicas are pending termination...
+error: timed out waiting for the condition
+(old pod still Ready and serving - the rollout is safe but STUCK; progressDeadlineSeconds would eventually flag it)
+prober so far:
+   http 200: 38 probes
+
+### 2. fix the strategy: maxSurge 0, maxUnavailable 1 -> old pod is deleted first, its GPU is freed, the pending pod schedules
+
+$ helm --kube-context kind-lab upgrade vllm charts/vllm-gpu -n gpu-lab --reuse-values --set podAnnotations.rollout=v2 --set strategy.rollingUpdate.maxSurge=0 --set strategy.rollingUpdate.maxUnavailable=1
+Release "vllm" has been upgraded. Happy Helming!
+NAME: vllm
+LAST DEPLOYED: Tue Nov  3 07:20:58 2026
+NAMESPACE: gpu-lab
+STATUS: deployed
+REVISION: 5
+DESCRIPTION: Upgrade complete
+TEST SUITE: None
+NOTES:
+vLLM (qwen3-4b) requests 1 x nvidia.com/gpu.
+Start-up takes minutes (load + torch.compile + CUDA graphs):  kubectl -n gpu-lab logs -f deploy/vllm
+Talk to it:   kubectl -n gpu-lab port-forward svc/vllm 18200:8000
+              curl localhost:18200/v1/chat/completions -H 'content-type: application/json' \
+                -d '{"model":"qwen3-4b","messages":[{"role":"user","content":"hi"}]}'
++0s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Pending   <none> vllm-799b7f58d9-6d78v   Running   true 
++10s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++21s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++31s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++41s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++51s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++61s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++71s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++81s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++92s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++102s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++112s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++122s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++132s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++142s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++153s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++163s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++173s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++183s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++193s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++203s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++213s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++224s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++234s ready/updated/total=/1/1  vllm-767f8cb995-p4wp6   Running   false 
++244s ready/updated/total=1/1/1  vllm-767f8cb995-p4wp6   Running   true 
+
+### 3. availability timeline from the in-cluster prober (state changes only)
+04:19:42 200
+04:20:58 000
+04:24:54 200
+total probes: 160   non-200: 117
+
+$ kubectl --context kind-lab -n gpu-lab get pods,rs -l app.kubernetes.io/name=vllm-gpu
+NAME                        READY   STATUS    RESTARTS   AGE
+pod/vllm-767f8cb995-p4wp6   1/1     Running   0          5m20s
+
+NAME                              DESIRED   CURRENT   READY   AGE
+replicaset.apps/vllm-767f8cb995   1         1         1       5m20s
+replicaset.apps/vllm-799b7f58d9   0         0         0       17m

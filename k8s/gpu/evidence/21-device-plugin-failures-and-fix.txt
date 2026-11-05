@@ -1,0 +1,27 @@
+### A. chart default: plugin runs as root. uid 0's inotify quota is used up (evidence/20) -> crash loop
+
+$ kubectl --context kind-lab -n nvidia-device-plugin get pods
+NAME                              READY   STATUS   RESTARTS      AGE
+nvdp-nvidia-device-plugin-8b59k   0/1     Error    2 (29s ago)   31s
+
+$ kubectl logs <plugin> | tail -3
+ >
+I1103 03:44:49.641962       1 main.go:272] Starting FS watcher for /var/lib/kubelet/device-plugins
+E1103 03:44:49.641992       1 main.go:198] failed to create FS watcher for /var/lib/kubelet/device-plugins/: couldn't initialize inotify: too many open files
+
+### B. run as uid 65534 (own inotify bucket) - but kubelet.sock is srwxr-xr-x root: a non-root client cannot connect()
+$ ls -l /var/lib/kubelet/device-plugins/kubelet.sock (in the node)
+srwxr-xr-x 1 root root 0 Nov  2 16:42 /var/lib/kubelet/device-plugins/kubelet.sock
+$ kubectl logs <plugin> | grep -E 'Registered|register|Failed|Starting to serve'
+I1103 03:45:10.821961       1 server.go:142] Starting to serve 'nvidia.com/gpu' on /var/lib/kubelet/device-plugins/nvidia-gpu.sock
+E1103 03:45:15.823737       1 server.go:146] Could not register device plugin: context deadline exceeded
+E1103 03:45:15.823957       1 main.go:409] Failed to start plugin: context deadline exceeded
+I1103 03:45:15.823967       1 main.go:302] Failed to start one or more plugins. Retrying in 30s...
+
+### C. fix: chmod 0666 kubelet.sock (lab-only; durable fix = raise fs.inotify.max_user_instances and run as root)
+daemon set "nvdp-nvidia-device-plugin" successfully rolled out
+$ kubectl logs <plugin> | grep -E 'Registered|Starting to serve|Ignoring'
+I1103 03:45:36.295958       1 server.go:142] Starting to serve 'nvidia.com/gpu' on /var/lib/kubelet/device-plugins/nvidia-gpu.sock
+I1103 03:45:36.297407       1 server.go:149] Registered device plugin for 'nvidia.com/gpu' with Kubelet
+I1103 03:45:36.298574       1 health.go:64] Ignoring the following XIDs for health checks: map[13:true 31:true 43:true 45:true 68:true 109:true]
+allocatable nvidia.com/gpu on lab-worker2: 1

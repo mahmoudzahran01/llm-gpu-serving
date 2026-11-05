@@ -1,0 +1,36 @@
+
+$ kubectl --context kind-lab apply -f manifests/smoke-gpu.yaml -f manifests/smoke-no-gpu.yaml
+pod/smoke-gpu created
+pod/smoke-no-gpu created
+
+$ kubectl --context kind-lab -n gpu-lab get pods -o wide
+NAME           READY   STATUS      RESTARTS   AGE   IP            NODE                NOMINATED NODE   READINESS GATES
+smoke-gpu      0/1     Completed   0          2s    10.244.1.36   lab-worker2   <none>           <none>
+smoke-no-gpu   0/1     Completed   0          2s    10.244.1.37   lab-worker2   <none>           <none>
+
+### smoke-gpu (limits: nvidia.com/gpu: 1)
+--- devices visible in the container
+crw-rw-rw- 1 root root 195, 254 Nov  3 03:45 /dev/nvidia-modeset
+crw-rw-rw- 1 root root 498,   0 Nov  3 03:45 /dev/nvidia-uvm
+crw-rw-rw- 1 root root 498,   1 Nov  3 03:45 /dev/nvidia-uvm-tools
+crw-rw-rw- 1 root root 195,   0 Nov  3 03:45 /dev/nvidia0
+crw-rw-rw- 1 root root 195, 255 Nov  3 03:45 /dev/nvidiactl
+--- nvidia-smi -L
+GPU 0: NVIDIA GB10 (UUID: GPU-72c8f06b-2c1c-b4e0-2ad9-3783d67e6d61)
+--- env
+NVIDIA_CTK_LIBCUDA_DIR=/usr/lib/aarch64-linux-gnu
+LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/li
+NVIDIA_REQUIRE_CUDA=cuda>=13.0 brand=unknown,driver>=535,driver<536 brand=grid,d
+NVIDIA_DRIVER_CAPABILITIES=compute,utility
+PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/u
+NVIDIA_VISIBLE_DEVICES=void
+
+### smoke-no-gpu (no request, same node)
+--- devices visible in the container
+ls: cannot access '/dev/nvidia*': No such file or directory
+--- nvidia-smi
+sh: 2: nvidia-smi: not found
+
+### what the scheduler/kubelet recorded for the GPU pod
+c limits={"nvidia.com/gpu":"1"}
+node=lab-worker2

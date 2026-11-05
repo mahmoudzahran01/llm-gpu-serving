@@ -1,0 +1,10 @@
+# The base cluster the GPU plumbing is added to: kind ("Kubernetes IN Docker"), 1 control-plane + 2 workers so
+# scheduling, spreading and draining are real. One worker (lab-worker2) becomes the "GPU node" via up.sh.
+#   kind create cluster --config kind/lab-cluster.yaml        # context: kind-lab
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: lab
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

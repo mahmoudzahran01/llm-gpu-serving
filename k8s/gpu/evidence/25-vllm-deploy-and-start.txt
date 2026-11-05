@@ -1,0 +1,145 @@
+
+$ free -g
+               total        used        free      shared  buff/cache   available
+Mem:             121          94          25           4           7          27
+Swap:             15           9           6
+memory ok: 27 GB available (need 25)
+
+$ helm --kube-context kind-lab upgrade --install vllm charts/vllm-gpu -n gpu-lab
+Release "vllm" does not exist. Installing it now.
+NAME: vllm
+LAST DEPLOYED: Tue Nov  3 07:07:22 2026
+NAMESPACE: gpu-lab
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+vLLM (qwen3-4b) requests 1 x nvidia.com/gpu.
+Start-up takes minutes (load + torch.compile + CUDA graphs):  kubectl -n gpu-lab logs -f deploy/vllm
+Talk to it:   kubectl -n gpu-lab port-forward svc/vllm 18200:8000
+              curl localhost:18200/v1/chat/completions -H 'content-type: application/json' \
+                -d '{"model":"qwen3-4b","messages":[{"role":"user","content":"hi"}]}'
+
+### watching (one line per 20 s)
++0s  vllm-799b7f58d9-6d78v   false   false   Pending   0
++20s  vllm-799b7f58d9-6d78v   false   false   Running   0
++41s  vllm-799b7f58d9-6d78v   false   false   Running   0
++61s  vllm-799b7f58d9-6d78v   false   false   Running   0
++81s  vllm-799b7f58d9-6d78v   false   false   Running   0
++101s  vllm-799b7f58d9-6d78v   false   false   Running   0
++121s  vllm-799b7f58d9-6d78v   false   false   Running   0
++141s  vllm-799b7f58d9-6d78v   false   false   Running   0
++162s  vllm-799b7f58d9-6d78v   false   false   Running   0
++182s  vllm-799b7f58d9-6d78v   false   false   Running   0
++202s  vllm-799b7f58d9-6d78v   false   false   Running   0
++222s  vllm-799b7f58d9-6d78v   false   false   Running   0
++242s  vllm-799b7f58d9-6d78v   false   false   Running   0
++262s  vllm-799b7f58d9-6d78v   true   true   Running   0
+
+### time to Ready: 262 s
+
+### vLLM start-up milestones from the pod log
+(APIServer pid=1) INFO 11-03 04:07:44 [api_utils.py:286] non-default args: {'model_tag': '/model', 'host': '0.0.0.0', 'model': '/model', 'max_model_len': 4096, 'served_model_name': ['qwen3-4b'], 'gpu_memory_utilization': 0.15, 'kv
+(EngineCore pid=256) INFO 11-03 04:07:57 [core.py:133] Initializing a V1 LLM engine (v0.31.0+88641915.dev) with config: model='/model', speculative_config=None, tokenizer='/model', skip_tokenizer_init=False, tokenizer_mode=auto, r
+(EngineCore pid=256) INFO 11-03 04:08:25 [default_loader.py:512] Loading weights took 15.75 seconds
+(EngineCore pid=256) INFO 11-03 04:08:29 [model_runner.py:410] Model loading took 7.64 GiB memory and 26.840860 seconds
+(EngineCore pid=256) INFO 11-03 04:08:34 [kv_cache_utils.py:2623] GPU KV cache size: 29,120 tokens, Maximum concurrency for 4,096 tokens per request: 7.11x
+
+Capturing CUDA graphs (PIECEWISE):   0%|          | 0/51 [00:00<?, ?it/s]
+Capturing CUDA graphs (PIECEWISE):   2%|▏         | 1/51 [00:00<00:22,  2.23it/s]
+Capturing CUDA graphs (PIECEWISE):   4%|▍         | 2/51 [00:00<00:21
+
+Capturing CUDA graphs (FULL):   0%|          | 0/35 [00:00<?, ?it/s]
+Capturing CUDA graphs (FULL):   3%|▎         | 1/35 [00:00<00:06,  5.16it/s]
+Capturing CUDA graphs (FULL):   6%|▌         | 2/35 [00:00<00:07,  4.44it/s]
+Ca
+(EngineCore pid=256) INFO 11-03 04:11:23 [model_runner.py:1089] Graph capturing finished in 93 secs, took 1.39 GiB
+(APIServer pid=1) INFO 11-03 04:11:28 [entry.py:136] Starting vLLM server on http://0.0.0.0:8000
+INFO:     Application startup complete.
+
+
+$ kubectl --context kind-lab -n gpu-lab get pods,svc,deploy -o wide
+NAME                        READY   STATUS      RESTARTS   AGE     IP            NODE                NOMINATED NODE   READINESS GATES
+pod/smoke-gpu               0/1     Completed   0          25m     10.244.1.36   lab-worker2   <none>           <none>
+pod/smoke-no-gpu            0/1     Completed   0          25m     10.244.1.37   lab-worker2   <none>           <none>
+pod/vllm-799b7f58d9-6d78v   1/1     Running     0          4m23s   10.244.1.42   lab-worker2   <none>           <none>
+
+NAME           TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE     SELECTOR
+service/vllm   ClusterIP   10.96.19.23   <none>        8000/TCP   4m23s   app.kubernetes.io/instance=vllm,app.kubernetes.io/name=vllm-gpu
+
+NAME                   READY   UP-TO-DATE   AVAILABLE   AGE     CONTAINERS   IMAGES                          SELECTOR
+deployment.apps/vllm   1/1     1            1           4m23s   vllm         nvcr.io/nvidia/vllm:26.10-py3   app.kubernetes.io/instance=vllm,app.kubernetes.io/name=vllm-gpu
+
+$ kubectl describe pod (resources, probes, volumes, events)
+Containers:
+  vllm:
+    Container ID:  containerd://3a51745f7c724b6d44d0f755c20714c17bee5fad4189e1f18d439174e10db556
+    Image:         nvcr.io/nvidia/vllm:26.10-py3
+    Image ID:      docker.io/library/import-2026-11-03@sha256:6578a515233407fdfdae24034ea43e7a6b65845c4c95d05d57b85acc33b3ab17
+    Port:          8000/TCP (http)
+    Host Port:     0/TCP (http)
+    Args:
+      vllm
+      serve
+      /model
+      --served-model-name=qwen3-4b
+      --host=0.0.0.0
+      --port=8000
+      --max-model-len=4096
+      --kv-cache-memory=4294967296
+      --gpu-memory-utilization=0.15
+      --enable-prefix-caching
+    State:          Running
+      Started:      Tue, 03 Nov 2026 07:07:23 +0300
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      memory:          40Gi
+      nvidia.com/gpu:  1
+    Requests:
+      cpu:             4
+      memory:          12Gi
+      nvidia.com/gpu:  1
+    Liveness:          http-get http://:http/health delay=0s timeout=1s period=20s successThreshold=1 failureThreshold=3
+    Readiness:         http-get http://:http/health delay=0s timeout=1s period=10s successThreshold=1 failureThreshold=3
+    Startup:           http-get http://:http/health delay=0s timeout=1s period=10s successThreshold=1 failureThreshold=180
+    Environment:
+      HF_HUB_OFFLINE:           1
+      VLLM_CACHE_ROOT:          /cache/vllm
+      TORCHINDUCTOR_CACHE_DIR:  /cache/inductor
+      TRITON_CACHE_DIR:         /cache/triton
+    Mounts:
+      /cache from cache (rw)
+      /dev/shm from shm (rw)
+      /model from model (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-cp5qw (ro)
+Conditions:
+Events:
+  Type     Reason     Age                   From               Message
+  ----     ------     ----                  ----               -------
+  Normal   Scheduled  4m22s                 default-scheduler  Successfully assigned gpu-lab/vllm-799b7f58d9-6d78v to lab-worker2
+  Normal   Pulled     4m22s                 kubelet            spec.containers{vllm}: Container image "nvcr.io/nvidia/vllm:26.10-py3" already present on machine and can be accessed by the pod
+  Normal   Created    4m22s                 kubelet            spec.containers{vllm}: Container created
+  Normal   Started    4m22s                 kubelet            spec.containers{vllm}: Container started
+  Warning  Unhealthy  22s (x24 over 4m12s)  kubelet            spec.containers{vllm}: Startup probe failed: Get "http://10.244.1.42:8000/health": dial tcp 10.244.1.42:8000: connect: connection refused
+
+### node accounting: the GPU is now fully allocated
+  Resource           Requests       Limits
+  cpu                4470m (22%)    1 (5%)
+  memory             13562Mi (10%)  43200Mi (34%)
+  nvidia.com/gpu     1              1
+
+### host view of the same process (GPU memory is unified: nvidia-smi shows per-process usage only)
+
+$ nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv
+pid, process_name, used_gpu_memory [MiB]
+2493, /opt/llama.cpp/build/bin/llama-server, 36200 MiB
+2489, /opt/llama.cpp/build/bin/llama-server, 21243 MiB
+2782092, python, 16039 MiB
+3519268, VLLM::EngineCore, 13341 MiB
+
+$ free -g
+               total        used        free      shared  buff/cache   available
+Mem:             121         111           6           4           9           9
+Swap:             15           8           7

@@ -1,0 +1,70 @@
+image:
+  repository: nvcr.io/nvidia/vllm
+  tag: "26.10-py3"
+  pullPolicy: IfNotPresent        # the image was `kind load`ed into the node, nothing is pulled
+
+model:
+  servedName: qwen3-4b            # what clients put in "model": ...
+  # weights live on the NODE's local disk and are mounted read-only (see scripts/node-inject.sh).
+  # In a real cluster this is a PVC / a CSI mount of object storage / an initContainer that downloads.
+  hostPath: /models/Qwen3-4B-Instruct-2507
+  mountPath: /model
+
+vllm:
+  maxModelLen: 4096
+  # Shared GPU (unified memory, other tenants): pass BOTH of these or vLLM's start-up free-memory check fails.
+  kvCacheMemoryBytes: 4294967296  # fixed 4 GiB KV cache instead of "a fraction of whatever is free"
+  # With kv-cache-memory set, this only feeds the START-UP CHECK "free GPU memory >= util x total (121.69 GiB)".
+  # A first attempt used 0.2 (= 24.3 GiB must be free); on this busy box that tripped twice in a row (evidence/25b), so the
+  # default is 0.15 (18.3 GiB), still above the real footprint (~15 GiB: 7.6 GiB weights + 4 GiB KV + graphs).
+  gpuMemoryUtilization: "0.15"
+  enablePrefixCaching: true
+  extraArgs: []
+
+gpu:
+  resourceName: nvidia.com/gpu    # the extended resource the device plugin advertises
+  count: 1                        # integers only: an extended resource cannot be fractional or overcommitted
+
+replicas: 1
+
+# One GPU = one pod at a time. With the Kubernetes default (maxSurge 25% -> 1, maxUnavailable 25% -> 0) the NEW pod
+# is created before the old one is removed and can never be scheduled (needs a 2nd GPU). See evidence/28.
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
+
+resources:
+  requests: {cpu: "4", memory: 12Gi}
+  limits: {memory: 40Gi}          # the GPU goes in limits via gpu.count; CPU limit left off on purpose (no throttling)
+
+shm:
+  sizeLimit: 8Gi                  # docker run used --ipc=host; in k8s /dev/shm is 64Mi unless you mount a Memory emptyDir
+
+probes:
+  # Model load + torch.compile + CUDA graph capture take minutes. The startupProbe holds liveness/readiness back
+  # for up to failureThreshold*periodSeconds = 30 min; after that liveness restarts a wedged server in ~1 min.
+  startup: {failureThreshold: 180, periodSeconds: 10}
+  readiness: {periodSeconds: 10, failureThreshold: 3}
+  liveness: {periodSeconds: 20, failureThreshold: 3}
+
+progressDeadlineSeconds: 1800     # default 600 s would mark a normal vLLM rollout "failed" while it is still compiling
+
+nodeSelector:
+  nvidia.com/gpu.present: "true"
+tolerations:
+  - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}   # no-op on this cluster, required on tainted GPU pools
+
+service:
+  type: ClusterIP
+  port: 8000
+
+# scraped by the in-cluster kube-prometheus-stack (release "kps") when enabled
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  labels: {release: kps}
+
+podAnnotations: {}                # `--set podAnnotations.bump=2` forces a new ReplicaSet (rollout demo)
+extraEnv: []

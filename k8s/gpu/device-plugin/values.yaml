@@ -1,0 +1,21 @@
+# NVIDIA k8s-device-plugin 0.20.x for a cluster WITHOUT the nvidia container runtime (rootless box, no sudo).
+# Everything the nvidia runtime normally does is replaced by CDI (Container Device Interface):
+#   - the plugin discovers the GPU with NVML (libnvidia-ml found under /driver-root = node:/opt/nvidia-driver)
+#   - it writes a CDI spec (/var/run/cdi/k8s.device-plugin.nvidia.com-gpu.json in the node) that lists
+#     device nodes + driver libs + the nvidia-cdi-hook
+#   - on Allocate it hands kubelet a CDI device NAME (deviceListStrategy cdi-cri); containerd resolves the
+#     name against the spec and edits the container's OCI config. No runtimeClass needed.
+deviceListStrategy: cdi-cri
+nvidiaDriverRoot: /opt/nvidia-driver          # where the driver files live ON THE NODE
+nvidiaDevRoot: /                              # device nodes are in the node's /dev (kind nodes are privileged)
+cdi:
+  nvidiaHookPath: /opt/nvidia-driver/usr/bin/nvidia-cdi-hook   # path ON THE NODE; runc runs it at container create
+securityContext:
+  privileged: true                            # plugin pod itself must see /dev/nvidia* and the driver root
+  # WHY non-root: the box's uid-0 inotify quota (fs.inotify.max_user_instances=128) is exhausted, and the
+  # plugin as root dies with "couldn't initialize inotify: too many open files" (evidence/21).
+  # inotify instances are counted per uid, so uid 65534 has its own free quota.
+  runAsUser: 65534
+  runAsGroup: 65534
+gfd:
+  enabled: false

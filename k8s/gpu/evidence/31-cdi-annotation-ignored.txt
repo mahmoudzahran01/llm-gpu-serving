@@ -1,0 +1,21 @@
+### 1. a raw CDI spec for the toolkit's device nvidia.com/gpu=all, valid inside the node (host paths -> /opt/nvidia-driver copy)
+
+$ docker exec lab-worker2 sh -c ls -l /etc/cdi; grep -E "^kind:|- name:" /etc/cdi/nvidia-debug.yaml
+total 20
+-rw-r--r-- 1 root root 17072 Nov  3 04:38 nvidia-debug.yaml
+kind: nvidia.com/gpu
+- name: '0'
+- name: GPU-72c8f06b-2c1c-b4e0-2ad9-3783d67e6d61
+- name: all
+
+### 2. pod WITHOUT a GPU limit, annotated cdi.k8s.io/probe: nvidia.com/gpu=all
+
+$ kubectl --context kind-lab apply -f manifests/cdi-annotation-probe.yaml
+pod/cdi-annotation-probe created
+
+$ kubectl --context kind-lab -n gpu-lab logs cdi-annotation-probe
+ls: cannot access '/dev/nvidia*': No such file or directory
+no nvidia-smi
+
+### result: nothing injected, no error. containerd ignores the annotation, so the device plugin must return the CDI name via the CRI field (deviceListStrategy: cdi-cri)
+debug spec removed from the node

@@ -1,0 +1,23 @@
+
+$ kubectl --context kind-lab -n gpu-lab exec client -- curl -s http://vllm.gpu-lab.svc.cluster.local:8000/v1/models
+{"object":"list","data":[{"id":"qwen3-4b","object":"model","created":1793679133,"owned_by":"vllm","root":"/model","parent":null,"max_model_len":4096,"permission":[{"id":"modelperm-b02d5dccd07b32b6","object":"model_permission","created":1793679133,"allow_create_engine":false,"allow_sampling":true,"allow_logprobs":true,"allow_search_indices":false,"allow_view":true,"allow_fine_tuning":false,"organization":"*","group":null,"is_blocking":false}]}]}
+
+### chat completion from another pod: DNS name -> Service -> the vLLM pod
+$ curl -s -w '\n[http=%{http_code} total=%{time_total}s]' http://vllm.gpu-lab.svc.cluster.local:8000/v1/chat/completions -d '<body>'
+{"id":"chatcmpl-9481dc10ae234b0e","object":"chat.completion","created":1793679133,"model":"qwen3-4b","choices":[{"index":0,"message":{"role":"assistant","content":"A Kubernetes pod that requests 2 GPUs stays Pending on a node with only 1 GPU because the node does not have sufficient hardware resources to satisfy the requested GPU count.","refusal":null,"annotations":null,"audio":null,"function_call":null,"reasoning":null},"logprobs":null,"finish_reason":"stop","stop_reason":null,"token_ids":null,"routed_experts":null}],"service_tier":null,"system_fingerprint":"vllm-0.31.0+88641915.dev-dcc430d9","usage":{"prompt_tokens":38,"total_tokens":73,"completion_tokens":35,"prompt_tokens_details":null,"completion_tokens_details":null},"prompt_logprobs":null,"prompt_token_ids":null,"prompt_text":null,"kv_transfer_params":null,"ec_transfer_params":null,"metrics":null}
+[http=200 total=5.990731s]
+
+### 8 concurrent requests (vLLM batches them on the one GPU): wall time
+200 8.268434s
+200 8.623255s
+200 8.764288s
+200 10.195588s
+200 10.372581s
+200 13.987580s
+200 13.988003s
+200 13.987463s
+wall: 14.106918470 s
+
+### the same thing from the host (ssh session on the Spark) through kubectl port-forward
+$ curl -s localhost:18200/v1/models | head -c 300
+{"object":"list","data":[{"id":"qwen3-4b","object":"model","created":1793679156,"owned_by":"vllm","root":"/model","parent":null,"max_model_len":4096,"permission":[{"id":"modelperm-9deb6595551c4ea6","object":"model_permission","created":1793679156,"allow_create_engine":false,"allow_sampling":true,"al

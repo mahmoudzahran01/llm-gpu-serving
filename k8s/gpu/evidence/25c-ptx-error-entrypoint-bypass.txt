@@ -1,0 +1,24 @@
+# vLLM pod CrashLoop #2: container started with a k8s `command:` override (bypassing the image ENTRYPOINT)
+# The model loads fine, then the first real kernel launch fails. Same image + same flags work under `docker run` (scripts/quant_sweep.sh).
+
+$ kubectl get pod
+NAME                   READY   STATUS    RESTARTS      AGE
+vllm-cb5dff46d-pv9b7   0/1     Running   5 (91s ago)   8m50s
+
+$ kubectl logs deploy/vllm --previous | grep -E "AcceleratorError|PTX|ISA|Returning 222"
+No device code available for GPU ISA 121
+Returning 222 (CUDA_ERROR_UNSUPPORTED_PTX_VERSION) from cuLibraryGetKernel
+torch.AcceleratorError: CUDA error: the provided PTX was compiled with an unsupported toolchain.
+
+$ docker inspect nvcr.io/nvidia/vllm:26.10-py3 (ENTRYPOINT / CUDA versions)
+ENTRYPOINT=["/opt/nvidia/nvidia_entrypoint.sh"]
+CUDA_VERSION=13.4.3.001
+CUDA_DRIVER_VERSION=615.71.09
+_CUDA_COMPAT_PATH=/usr/local/cuda/compat
+ENV=/etc/shinit_v2
+BASH_ENV=/etc/bash.bashrc
+host driver: 580.159.03
+
+# diagnosis: the NGC image is built with CUDA 13.4 (wants driver 615) but the host driver is 580 / CUDA 13.0. Its ENTRYPOINT (nvidia_entrypoint.sh -> /etc/shinit_v2) runs a CUDA forward-compatibility check and, if it passes, puts /usr/local/cuda/compat/lib on LD_LIBRARY_PATH.
+# In k8s, `command:` REPLACES the image ENTRYPOINT (`args:` only replaces CMD). My first chart used command: [vllm, serve, ...], so the compat setup never ran and the driver could not JIT the PTX-only flash-attention kernel ("No device code available for GPU ISA 121").
+# fix: drop `command:`, pass `args: [vllm, serve, ...]` so the entrypoint wrapper runs first and then exec vllm.

@@ -1,0 +1,15 @@
+# Layer on top of values.yaml:   helm upgrade nvdp nvdp/nvidia-device-plugin -f values.yaml -f values-timeslicing.yaml
+# Tells the device plugin to advertise ONE physical GPU as TWO schedulable "nvidia.com/gpu" units.
+# This is bookkeeping only: Kubernetes now allows 2 pods on the GPU, the driver time-slices their CUDA contexts,
+# and there is NO memory isolation and NO fairness/QoS between them (evidence/29).
+config:
+  default: timeslice2
+  map:
+    timeslice2: |-
+      version: v1
+      sharing:
+        timeSlicing:
+          failRequestsGreaterThanOne: true     # a pod asking for 2 slices would get 2 slots but no more compute: reject it
+          resources:
+            - name: nvidia.com/gpu
+              replicas: 2

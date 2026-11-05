@@ -1,0 +1,30 @@
+
+$ kubectl --context kind-lab apply -f manifests/gpu-x2-pending.yaml
+pod/wants-two-gpus created
+
+$ kubectl --context kind-lab -n gpu-lab get pod wants-two-gpus -o wide
+NAME             READY   STATUS    RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
+wants-two-gpus   0/1     Pending   0          8s    <none>   <none>   <none>           <none>
+
+$ kubectl describe pod wants-two-gpus   (Events)
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  8s    default-scheduler  0/3 nodes are available: 1 node(s) had untolerated taint(s), 2 Insufficient nvidia.com/gpu. preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+
+
+$ kubectl --context kind-lab -n gpu-lab get events --field-selector involvedObject.name=wants-two-gpus -o custom-columns=REASON:.reason,MESSAGE:.message
+REASON             MESSAGE
+FailedScheduling   0/3 nodes are available: 1 node(s) had untolerated taint(s), 2 Insufficient nvidia.com/gpu. preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+FailedScheduling   0/3 nodes are available: 1 node(s) had untolerated taint(s), 2 Insufficient nvidia.com/gpu. preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+FailedScheduling   0/3 nodes are available: 1 node(s) had untolerated taint(s), 2 Insufficient nvidia.com/gpu. preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+FailedScheduling   0/3 nodes are available: 1 node(s) had untolerated taint(s), 2 Insufficient nvidia.com/gpu. preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+
+### reading the message: 0/3 nodes: 1 untolerated taint (control-plane) + 2 Insufficient nvidia.com/gpu
+###   (worker has 0 GPUs, worker2 has 1 < 2). Nothing is 'queued' on a GPU; the pod just never leaves Pending.
+
+$ kubectl --context kind-lab get nodes -o custom-columns=NODE:.metadata.name,GPU-ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
+NODE                      GPU-ALLOCATABLE
+lab-control-plane   <none>
+lab-worker          <none>
+lab-worker2         1
