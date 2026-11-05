@@ -1,0 +1,14 @@
+vllm:spec_decode_num_drafts_total{engine="0",model_name="m"} 13906.0
+vllm:spec_decode_num_drafts_created{engine="0",model_name="m"} 1.793716640742205e+09
+vllm:spec_decode_num_draft_tokens_total{engine="0",model_name="m"} 55624.0
+vllm:spec_decode_num_draft_tokens_created{engine="0",model_name="m"} 1.7937166407422266e+09
+vllm:spec_decode_num_accepted_tokens_total{engine="0",model_name="m"} 36708.0
+vllm:spec_decode_num_accepted_tokens_created{engine="0",model_name="m"} 1.7937166407422419e+09
+vllm:spec_decode_num_accepted_tokens_per_pos_total{engine="0",model_name="m",position="0"} 11371.0
+vllm:spec_decode_num_accepted_tokens_per_pos_total{engine="0",model_name="m",position="1"} 9773.0
+vllm:spec_decode_num_accepted_tokens_per_pos_total{engine="0",model_name="m",position="2"} 8260.0
+vllm:spec_decode_num_accepted_tokens_per_pos_total{engine="0",model_name="m",position="3"} 7304.0
+vllm:spec_decode_num_accepted_tokens_per_pos_created{engine="0",model_name="m",position="0"} 1.7937166407422616e+09
+vllm:spec_decode_num_accepted_tokens_per_pos_created{engine="0",model_name="m",position="1"} 1.793716640742268e+09
+vllm:spec_decode_num_accepted_tokens_per_pos_created{engine="0",model_name="m",position="2"} 1.793716640742274e+09
+vllm:spec_decode_num_accepted_tokens_per_pos_created{engine="0",model_name="m",position="3"} 1.7937166407422798e+09

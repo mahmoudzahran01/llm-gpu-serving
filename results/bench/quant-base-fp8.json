@@ -1,0 +1,36 @@
+{
+ "tag": "quant-base-fp8",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.127,
+   "ttft_p95_s": 0.188,
+   "tpot_p50_ms": 59.1,
+   "output_tok_per_s": 17.0,
+   "requests_per_s": 0.16,
+   "wall_s": 195.3
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.196,
+   "ttft_p95_s": 0.24,
+   "tpot_p50_ms": 63.7,
+   "output_tok_per_s": 113.5,
+   "requests_per_s": 1.05,
+   "wall_s": 30.4
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.254,
+   "ttft_p95_s": 0.304,
+   "tpot_p50_ms": 69.4,
+   "output_tok_per_s": 152.1,
+   "requests_per_s": 1.38,
+   "wall_s": 23.2
+  }
+ ]
+}

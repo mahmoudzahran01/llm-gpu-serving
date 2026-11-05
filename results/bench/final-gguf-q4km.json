@@ -1,0 +1,36 @@
+{
+ "tag": "final-gguf-q4km",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.041,
+   "ttft_p95_s": 0.17,
+   "tpot_p50_ms": 15.4,
+   "output_tok_per_s": 60.4,
+   "requests_per_s": 0.56,
+   "wall_s": 57.2
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.119,
+   "ttft_p95_s": 0.309,
+   "tpot_p50_ms": 34.0,
+   "output_tok_per_s": 191.2,
+   "requests_per_s": 1.78,
+   "wall_s": 18.0
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.3,
+   "ttft_p95_s": 1.624,
+   "tpot_p50_ms": 54.9,
+   "output_tok_per_s": 199.2,
+   "requests_per_s": 1.84,
+   "wall_s": 17.4
+  }
+ ]
+}

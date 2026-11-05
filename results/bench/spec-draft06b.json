@@ -1,0 +1,36 @@
+{
+ "tag": "spec-draft06b",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.154,
+   "ttft_p95_s": 0.189,
+   "tpot_p50_ms": 20.5,
+   "output_tok_per_s": 45.3,
+   "requests_per_s": 0.43,
+   "wall_s": 75.2
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.251,
+   "ttft_p95_s": 0.255,
+   "tpot_p50_ms": 23.5,
+   "output_tok_per_s": 280.2,
+   "requests_per_s": 2.65,
+   "wall_s": 12.1
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.289,
+   "ttft_p95_s": 0.312,
+   "tpot_p50_ms": 27.9,
+   "output_tok_per_s": 410.9,
+   "requests_per_s": 3.89,
+   "wall_s": 8.2
+  }
+ ]
+}

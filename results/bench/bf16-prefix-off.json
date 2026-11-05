@@ -1,0 +1,46 @@
+{
+ "tag": "bf16-prefix-off",
+ "model": "qwen3-4b-base",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.478,
+   "ttft_p95_s": 0.604,
+   "tpot_p50_ms": 96.2,
+   "output_tok_per_s": 9.9,
+   "requests_per_s": 0.09,
+   "wall_s": 359.4
+  },
+  {
+   "concurrency": 4,
+   "requests": 32,
+   "ttft_p50_s": 0.647,
+   "ttft_p95_s": 1.196,
+   "tpot_p50_ms": 101.8,
+   "output_tok_per_s": 36.5,
+   "requests_per_s": 0.32,
+   "wall_s": 100.0
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.697,
+   "ttft_p95_s": 2.287,
+   "tpot_p50_ms": 125.9,
+   "output_tok_per_s": 57.5,
+   "requests_per_s": 0.51,
+   "wall_s": 63.0
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 3.43,
+   "ttft_p95_s": 7.077,
+   "tpot_p50_ms": 156.7,
+   "output_tok_per_s": 72.0,
+   "requests_per_s": 0.64,
+   "wall_s": 50.3
+  }
+ ]
+}

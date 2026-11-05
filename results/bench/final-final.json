@@ -1,0 +1,36 @@
+{
+ "tag": "final-final",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.093,
+   "ttft_p95_s": 0.096,
+   "tpot_p50_ms": 46.6,
+   "output_tok_per_s": 21.2,
+   "requests_per_s": 0.2,
+   "wall_s": 162.4
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.127,
+   "ttft_p95_s": 0.133,
+   "tpot_p50_ms": 40.4,
+   "output_tok_per_s": 172.5,
+   "requests_per_s": 1.6,
+   "wall_s": 20.0
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.145,
+   "ttft_p95_s": 0.183,
+   "tpot_p50_ms": 42.7,
+   "output_tok_per_s": 245.3,
+   "requests_per_s": 2.27,
+   "wall_s": 14.1
+  }
+ ]
+}

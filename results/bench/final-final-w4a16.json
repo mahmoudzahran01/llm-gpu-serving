@@ -1,0 +1,36 @@
+{
+ "tag": "final-final-w4a16",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.043,
+   "ttft_p95_s": 0.046,
+   "tpot_p50_ms": 15.2,
+   "output_tok_per_s": 64.6,
+   "requests_per_s": 0.61,
+   "wall_s": 52.1
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.064,
+   "ttft_p95_s": 0.072,
+   "tpot_p50_ms": 16.2,
+   "output_tok_per_s": 428.2,
+   "requests_per_s": 4.03,
+   "wall_s": 7.9
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.079,
+   "ttft_p95_s": 0.156,
+   "tpot_p50_ms": 18.7,
+   "output_tok_per_s": 671.9,
+   "requests_per_s": 6.44,
+   "wall_s": 5.0
+  }
+ ]
+}

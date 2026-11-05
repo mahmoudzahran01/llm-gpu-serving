@@ -1,0 +1,36 @@
+{
+ "tag": "spec-ngram",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.056,
+   "ttft_p95_s": 0.059,
+   "tpot_p50_ms": 33.5,
+   "output_tok_per_s": 24.1,
+   "requests_per_s": 0.23,
+   "wall_s": 138.9
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.1,
+   "ttft_p95_s": 0.119,
+   "tpot_p50_ms": 38.6,
+   "output_tok_per_s": 186.8,
+   "requests_per_s": 1.79,
+   "wall_s": 17.9
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.119,
+   "ttft_p95_s": 0.139,
+   "tpot_p50_ms": 85.3,
+   "output_tok_per_s": 121.6,
+   "requests_per_s": 1.15,
+   "wall_s": 27.8
+  }
+ ]
+}

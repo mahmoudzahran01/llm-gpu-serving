@@ -1,0 +1,36 @@
+{
+ "tag": "kv5-base-fp8",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.109,
+   "ttft_p95_s": 0.14,
+   "tpot_p50_ms": 52.7,
+   "output_tok_per_s": 20.0,
+   "requests_per_s": 0.18,
+   "wall_s": 174.2
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.118,
+   "ttft_p95_s": 0.169,
+   "tpot_p50_ms": 40.4,
+   "output_tok_per_s": 180.6,
+   "requests_per_s": 1.73,
+   "wall_s": 18.5
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.147,
+   "ttft_p95_s": 0.193,
+   "tpot_p50_ms": 44.5,
+   "output_tok_per_s": 260.0,
+   "requests_per_s": 2.37,
+   "wall_s": 13.5
+  }
+ ]
+}

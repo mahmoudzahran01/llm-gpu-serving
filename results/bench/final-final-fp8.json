@@ -1,0 +1,36 @@
+{
+ "tag": "final-final-fp8",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.054,
+   "ttft_p95_s": 0.056,
+   "tpot_p50_ms": 24.0,
+   "output_tok_per_s": 41.2,
+   "requests_per_s": 0.38,
+   "wall_s": 83.3
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.081,
+   "ttft_p95_s": 0.109,
+   "tpot_p50_ms": 24.9,
+   "output_tok_per_s": 282.3,
+   "requests_per_s": 2.63,
+   "wall_s": 12.2
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.101,
+   "ttft_p95_s": 0.128,
+   "tpot_p50_ms": 26.9,
+   "output_tok_per_s": 400.6,
+   "requests_per_s": 3.72,
+   "wall_s": 8.6
+  }
+ ]
+}

@@ -1,0 +1,36 @@
+{
+ "tag": "spec-none",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.095,
+   "ttft_p95_s": 0.098,
+   "tpot_p50_ms": 47.6,
+   "output_tok_per_s": 20.7,
+   "requests_per_s": 0.2,
+   "wall_s": 162.0
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.13,
+   "ttft_p95_s": 0.138,
+   "tpot_p50_ms": 41.1,
+   "output_tok_per_s": 169.6,
+   "requests_per_s": 1.6,
+   "wall_s": 20.1
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.151,
+   "ttft_p95_s": 0.198,
+   "tpot_p50_ms": 43.3,
+   "output_tok_per_s": 265.8,
+   "requests_per_s": 2.53,
+   "wall_s": 12.6
+  }
+ ]
+}

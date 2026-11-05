@@ -1,0 +1,36 @@
+{
+ "tag": "kv5-base-w4a16",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.065,
+   "ttft_p95_s": 0.103,
+   "tpot_p50_ms": 28.3,
+   "output_tok_per_s": 32.6,
+   "requests_per_s": 0.28,
+   "wall_s": 114.2
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.132,
+   "ttft_p95_s": 0.201,
+   "tpot_p50_ms": 40.1,
+   "output_tok_per_s": 182.8,
+   "requests_per_s": 1.57,
+   "wall_s": 20.3
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.14,
+   "ttft_p95_s": 0.239,
+   "tpot_p50_ms": 46.5,
+   "output_tok_per_s": 260.8,
+   "requests_per_s": 2.24,
+   "wall_s": 14.3
+  }
+ ]
+}

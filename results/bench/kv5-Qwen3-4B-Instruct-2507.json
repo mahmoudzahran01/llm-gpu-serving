@@ -1,0 +1,36 @@
+{
+ "tag": "kv5-Qwen3-4B-Instruct-2507",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.17,
+   "ttft_p95_s": 0.249,
+   "tpot_p50_ms": 100.9,
+   "output_tok_per_s": 10.1,
+   "requests_per_s": 0.09,
+   "wall_s": 356.5
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.285,
+   "ttft_p95_s": 0.32,
+   "tpot_p50_ms": 90.7,
+   "output_tok_per_s": 83.6,
+   "requests_per_s": 0.74,
+   "wall_s": 43.2
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.317,
+   "ttft_p95_s": 0.454,
+   "tpot_p50_ms": 92.7,
+   "output_tok_per_s": 131.0,
+   "requests_per_s": 1.16,
+   "wall_s": 27.5
+  }
+ ]
+}

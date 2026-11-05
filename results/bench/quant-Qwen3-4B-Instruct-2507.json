@@ -1,0 +1,36 @@
+{
+ "tag": "quant-Qwen3-4B-Instruct-2507",
+ "model": "m",
+ "rows": [
+  {
+   "concurrency": 1,
+   "requests": 32,
+   "ttft_p50_s": 0.167,
+   "ttft_p95_s": 0.25,
+   "tpot_p50_ms": 98.2,
+   "output_tok_per_s": 10.5,
+   "requests_per_s": 0.09,
+   "wall_s": 343.9
+  },
+  {
+   "concurrency": 8,
+   "requests": 32,
+   "ttft_p50_s": 0.287,
+   "ttft_p95_s": 0.319,
+   "tpot_p50_ms": 89.2,
+   "output_tok_per_s": 84.9,
+   "requests_per_s": 0.75,
+   "wall_s": 42.9
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "ttft_p50_s": 0.282,
+   "ttft_p95_s": 0.434,
+   "tpot_p50_ms": 114.1,
+   "output_tok_per_s": 105.0,
+   "requests_per_s": 0.92,
+   "wall_s": 34.8
+  }
+ ]
+}
