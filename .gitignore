@@ -1,0 +1,33 @@
+# generated at run time, never committed
+runs/
+obs/data/
+obs/secrets/
+obs/.env
+.env
+k8s/gpu/kind/kind-config.generated.yaml
+*.log
+
+# model artefacts
+*.safetensors
+*.gguf
+*.bin
+merged/
+adapter/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/
