@@ -1,0 +1,65 @@
+# Drill B: vLLM saturation. 24 concurrent long, unique prompts straight at one vLLM server for 150 s
+# (obs/scripts/scenarios.sh B). Only the vLLM section of the capture is kept; instance names are as captured.
+# scenario B-vllm-saturation  window 1793642381..1793642760 (6.3 min), step 5s
+
+## llm
+- TTFT p95 (s), vLLM server-side
+    PromQL: histogram_quantile(0.95, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket{instance="obs-vllm"}[1m])))
+    {} min=0.875 mean=67.15 max=156 last=0.875
+      samples: 2.42 8.5 8.5 78 112 112 78 136 136 136 0.983 0.971
+- TTFT p50 (s)
+    PromQL: histogram_quantile(0.5, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket{instance="obs-vllm"}[1m])))
+    {} min=0.55 mean=39.53 max=120 last=0.55
+      samples: 1.75 4.38 4.38 60 61.8 61.8 60 64 64 64 0.833 0.625
+- inter-token latency p95 (s)
+    PromQL: histogram_quantile(0.95, sum by (le) (rate(vllm:inter_token_latency_seconds_bucket{instance="obs-vllm"}[1m])))
+    {} min=0.176 mean=0.2755 max=0.7375 last=0.2766
+      samples: 0.738 0.282 0.291 0.298 0.291 0.293 0.297 0.284 0.194 0.192 0.204 0.243
+- e2e latency p95 (s)
+    PromQL: histogram_quantile(0.95, sum by (le) (rate(vllm:e2e_request_latency_seconds_bucket{instance="obs-vllm"}[1m])))
+    {} min=19 mean=140.9 max=234 last=37.5
+      samples: 109 114 115 117 117 174 204 201 204 234 19.2 36
+- queue time mean (s)
+    PromQL: sum(rate(vllm:request_queue_time_seconds_sum{instance="obs-vllm"}[1m])) / sum(rate(vllm:request_queue_time_seconds_count{instance="obs-vllm"}[1m]))
+    {} min=3.639e-05 mean=40.76 max=80.22 last=3.639e-05
+      samples: 1.13 2.26 2.55 56.4 61.2 57.8 57.4 64 67.2 80.2 5.5e-05 3.99e-05
+- running requests
+    PromQL: vllm:num_requests_running{instance="obs-vllm"}
+    {} min=0 mean=7.526 max=12 last=4
+      samples: 0 12 11 12 10 12 10 12 1 0 0 4
+- waiting requests
+    PromQL: vllm:num_requests_waiting{instance="obs-vllm"}
+    {} min=0 mean=6.118 max=21 last=0
+      samples: 0 12 13 12 12 12 11 0 0 0 0 0
+- KV cache usage (0-1)
+    PromQL: vllm:kv_cache_usage_perc{instance="obs-vllm"}
+    {} min=0 mean=0.5818 max=0.9977 last=0.1243
+      samples: 0 0.988 0.967 0.983 0.786 0.99 0.861 0.99 0.0834 0 0 0.099
+- preemptions (cumulative)
+    PromQL: vllm:num_preemptions_total{instance="obs-vllm"}
+    {} min=0 mean=2.658 max=4 last=4
+      samples: 0 0 1 1 2 2 3 3 4 4 4 4
+- generation tokens/s
+    PromQL: sum(rate(vllm:generation_tokens_total{instance="obs-vllm"}[1m]))
+    {} min=0 mean=39.79 max=68.04 last=22
+      samples: 0 30 61.7 49.9 63.4 64.1 59.9 59.1 64.2 27.7 1.84 11.3
+- prompt tokens/s
+    PromQL: sum(rate(vllm:prompt_tokens_total{instance="obs-vllm"}[1m]))
+    {} min=0 mean=309.5 max=589.2 last=260.3
+      samples: 0 471 432 433 511 471 0 472 236 0 0 224
+- prefix cache hit ratio (1m)
+    PromQL: sum(rate(vllm:prefix_cache_hits_total{instance="obs-vllm"}[1m])) / sum(rate(vllm:prefix_cache_queries_total{instance="obs-vllm"}[1m]))
+    {} min=0.004954 mean=0.1744 max=0.8426 last=0.8426
+      samples: 0.00495 0.00679 0.00679 0.00739 0.00739 0.00741 0.00742 0.00739 0.0074 0.0074 0.00739 0.808
+- finished by reason /s
+    PromQL: sum by (finished_reason) (rate(vllm:request_success_total{instance="obs-vllm"}[1m]))
+    {finished_reason=abort} min=0 mean=0 max=0 last=0
+      samples: 0 0 0 0 0 0 0 0 0 0 0 0
+    {finished_reason=error} min=0 mean=0 max=0 last=0
+      samples: 0 0 0 0 0 0 0 0 0 0 0 0
+    {finished_reason=length} min=0 mean=0.1242 max=0.3636 last=0.01818
+      samples: 0 0 0 0.2 0.236 0.2 0.0545 0.218 0.236 0.218 0.0182 0
+    {finished_reason=repetition} min=0 mean=0 max=0 last=0
+      samples: 0 0 0 0 0 0 0 0 0 0 0 0
+    {finished_reason=stop} min=0 mean=0.0177 max=0.1636 last=0.1636
+      samples: 0 0 0 0 0 0 0 0 0 0 0 0.0545

@@ -1,0 +1,88 @@
+# OpenTelemetry Collector (contrib distribution).
+#   apps --OTLP--> [receivers] -> [processors] -> [exporters]
+# Traces fan out three ways: to Tempo (storage), to the spanmetrics connector (RED metrics derived
+# from spans) and to the servicegraph connector (who-calls-whom edges). Logs are tailed from the
+# app's JSON log file and shipped to Loki. The app never talks to Tempo/Loki directly - swapping a
+# backend is a collector config change, not an app deploy.
+receivers:
+  otlp/local:                          # apps on the host
+    protocols:
+      grpc: {endpoint: 127.0.0.1:4317}
+      http: {endpoint: 127.0.0.1:4318}
+  otlp/docker:                         # a bridge-network vLLM container reaches us on the docker0 gateway
+    protocols:
+      grpc: {endpoint: 172.17.0.1:4317}
+  filelog/app:
+    include: [/logs/*.jsonl]
+    start_at: end
+    operators:
+      - type: json_parser
+        timestamp: {parse_from: attributes.ts, layout: "%Y-%m-%dT%H:%M:%S.%LZ"}
+        severity: {parse_from: attributes.level}
+      - type: trace_parser
+        trace_id: {parse_from: attributes.trace_id}
+        span_id: {parse_from: attributes.span_id}
+
+processors:
+  memory_limiter: {check_interval: 2s, limit_mib: 400}
+  batch: {timeout: 2s}
+  resource/logs:
+    attributes:
+      - {key: service.name, value: llm-gateway-demo, action: upsert}
+      - {key: deployment.environment.name, value: lab, action: upsert}
+  # Tail sampling is the production lever for trace volume: keep 100% of errors and slow traces,
+  # sample the rest. Disabled here (we want every trace for the lab). Example:
+  #   tail_sampling: {decision_wait: 10s, policies: [
+  #     {name: errors, type: status_code, status_code: {status_codes: [ERROR]}},
+  #     {name: slow,   type: latency, latency: {threshold_ms: 5000}},
+  #     {name: rest,   type: probabilistic, probabilistic: {sampling_percentage: 10}}]}
+
+connectors:
+  spanmetrics:
+    histogram:
+      explicit: {buckets: [100ms, 250ms, 500ms, 1s, 2s, 4s, 8s, 15s, 30s, 60s]}
+    dimensions:                         # bounded attributes only - each one multiplies series
+      - {name: gen_ai.request.model}
+      - {name: gen_ai.operation.name}
+      - {name: http.route}
+      - {name: app.llm.stage}
+    exemplars: {enabled: true}
+    metrics_flush_interval: 5s
+    namespace: traces.span.metrics
+  servicegraph:
+    latency_histogram_buckets: [100ms, 250ms, 500ms, 1s, 2s, 4s, 8s, 15s, 30s]
+    store: {ttl: 20s, max_items: 2000}
+    metrics_flush_interval: 5s
+
+exporters:
+  otlp/tempo:
+    endpoint: 127.0.0.1:4327
+    tls: {insecure: true}
+  otlphttp/loki:
+    endpoint: http://127.0.0.1:3100/otlp
+  prometheus:                           # scraped by Prometheus job "otel-spanmetrics"
+    endpoint: 127.0.0.1:8889
+    enable_open_metrics: true
+    resource_to_telemetry_conversion: {enabled: false}
+
+service:
+  telemetry:
+    logs: {level: warn}
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus: {host: 127.0.0.1, port: 8888}
+  pipelines:
+    traces:
+      receivers: [otlp/local, otlp/docker]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo, spanmetrics, servicegraph]
+    metrics:
+      receivers: [spanmetrics, servicegraph]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [filelog/app]
+      processors: [memory_limiter, resource/logs, batch]
+      exporters: [otlphttp/loki]

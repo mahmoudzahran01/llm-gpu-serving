@@ -1,0 +1,25 @@
+# Alertmanager: group, de-duplicate, route. The only receiver here is a local webhook sink
+# (obs/scripts/alert_sink.py) that appends every notification to runs/obs/alerts.jsonl.
+# In production this is where PagerDuty / Slack / email receivers go.
+route:
+  receiver: sink
+  group_by: [alertname, instance]
+  group_wait: 5s          # lab values; production: 30s
+  group_interval: 30s     # production: 5m
+  repeat_interval: 1h
+  routes:
+    - matchers: [severity="page"]
+      receiver: sink
+      repeat_interval: 15m
+
+receivers:
+  - name: sink
+    webhook_configs:
+      - url: http://127.0.0.1:8035/alert
+        send_resolved: true
+
+inhibit_rules:
+  # If the whole scrape target is down, don't also page for symptoms measured from that target.
+  - source_matchers: [alertname="TargetDown"]
+    target_matchers: [severity=~"warning|info"]
+    equal: [instance]

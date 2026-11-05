@@ -1,0 +1,56 @@
+# Prometheus for the GPU-serving observability stack.
+# 5s scrapes so short experiments (2-3 minute load steps) still show detail. In production use 15-30s and keep
+# every rate() window >= 4x the scrape interval.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 10s
+  external_labels:
+    cluster: gpu-lab
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["localhost:9093"]
+
+scrape_configs:
+  # ---- the monitoring stack watching itself --------------------------------------------------
+  - job_name: prometheus
+    static_configs: [{targets: ["localhost:9090"]}]
+  - job_name: alertmanager
+    static_configs: [{targets: ["localhost:9093"]}]
+  - job_name: grafana
+    static_configs: [{targets: ["localhost:3030"]}]
+  - job_name: tempo
+    static_configs: [{targets: ["localhost:3200"]}]
+  - job_name: loki
+    static_configs: [{targets: ["localhost:3100"]}]
+  - job_name: otel-collector            # collector's own health: queue sizes, dropped spans
+    static_configs: [{targets: ["localhost:8888"]}]
+  - job_name: otel-spanmetrics          # RED metrics DERIVED FROM TRACES by the collector
+    honor_labels: true
+    static_configs: [{targets: ["localhost:8889"]}]
+
+  # ---- LLM serving ---------------------------------------------------------------------------
+  - job_name: vllm
+    static_configs:
+      - targets: ["localhost:8020"]     # the vLLM container started by obs/scripts/run_obs_vllm.sh
+        labels: {instance: obs-vllm, engine: vllm}
+      - targets: ["localhost:8010"]     # a second vLLM (e.g. an evaluation server): up only while it runs
+        labels: {instance: vllm-extra, engine: vllm, optional: "true"}
+
+  # ---- application ---------------------------------------------------------------------------
+  - job_name: llm-app                   # negotiates OpenMetrics, so exemplars (trace ids) are kept
+    static_configs:
+      - targets: ["localhost:8030"]
+        labels: {instance: llm-app}
+
+  # ---- host + GPU ----------------------------------------------------------------------------
+  - job_name: node
+    static_configs: [{targets: ["localhost:9100"], labels: {instance: gpu-host}}]
+  - job_name: dcgm                      # NVIDIA DCGM exporter: util / power / temp / clocks / energy
+    static_configs: [{targets: ["localhost:9400"], labels: {instance: gpu-host}}]
+  - job_name: gpu-workloads             # our nvidia-smi exporter: per-workload GPU memory (DCGM has none on GB10)
+    static_configs: [{targets: ["localhost:9401"], labels: {instance: gpu-host}}]

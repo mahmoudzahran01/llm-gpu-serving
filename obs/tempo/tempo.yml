@@ -1,0 +1,25 @@
+# Grafana Tempo: single binary, local disk. Receives OTLP from the collector on :4327 (4317/4318
+# belong to the collector), serves the query API on :3200 (Grafana + curl).
+server:
+  http_listen_address: 127.0.0.1
+  http_listen_port: 3200
+  grpc_listen_address: 127.0.0.1
+  grpc_listen_port: 9095
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc: {endpoint: 127.0.0.1:4327}
+        http: {endpoint: 127.0.0.1:4328}
+ingester:
+  max_block_duration: 5m
+compactor:
+  compaction:
+    block_retention: 72h
+storage:
+  trace:
+    backend: local
+    wal: {path: /var/tempo/wal}
+    local: {path: /var/tempo/blocks}
+usage_report:
+  reporting_enabled: false

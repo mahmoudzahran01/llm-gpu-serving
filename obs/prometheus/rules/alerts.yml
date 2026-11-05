@@ -1,0 +1,121 @@
+# Alert rules. Thresholds are lab-scaled where noted (short `for:`) so alerts can be triggered in
+# minutes; production values are in the annotation `prod_hint`.
+groups:
+  # -------------------------------------------------------------------------- LLM serving (USE)
+  - name: llm-serving
+    rules:
+      - alert: LLMTimeToFirstTokenHigh
+        expr: llm:ttft_seconds:p95_2m > 2
+        for: 1m
+        labels: {severity: warning, layer: serving}
+        annotations:
+          summary: "p95 time-to-first-token {{ $value | humanizeDuration }} on {{ $labels.instance }} (SLO 2s)"
+          description: "Users wait this long before the first token appears. Usually queueing (check waiting requests) or long prompts (check prefill time)."
+          prod_hint: "for: 5m; page only if it also burns the latency SLO"
+
+      - alert: LLMRequestQueueGrowing
+        expr: |
+          avg_over_time(vllm:num_requests_waiting[1m]) > 4
+          and deriv(vllm:num_requests_waiting[2m]) >= 0
+        for: 1m
+        labels: {severity: warning, layer: serving}
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value | printf \"%.0f\" }} requests waiting and the queue is not draining"
+          description: "Demand exceeds capacity. Every waiting request is adding queue time to its TTFT. Scale out, shed load, or cap concurrency upstream."
+          prod_hint: "for: 5m"
+
+      - alert: LLMKVCacheNearFull
+        expr: vllm:kv_cache_usage_perc > 0.90
+        for: 30s
+        labels: {severity: warning, layer: serving}
+        annotations:
+          summary: "{{ $labels.instance }} KV cache {{ $value | humanizePercentage }} full"
+          description: "At 100% vLLM must queue or preempt (evict and later recompute) running requests. Shorten max-model-len, cut concurrency, or give it more memory."
+          prod_hint: "for: 5m"
+
+      - alert: LLMPreemptionsDetected
+        expr: increase(vllm:num_preemptions_total[5m]) > 0
+        for: 0m
+        labels: {severity: warning, layer: serving}
+        annotations:
+          summary: "{{ $labels.instance }} preempted {{ $value | printf \"%.0f\" }} requests in 5m"
+          description: "Preemption = KV cache exhausted mid-generation; the victim's work is thrown away and recomputed. Latency tail will explode."
+
+      - alert: LLMPrefixCacheHitRateLow
+        expr: llm:prefix_cache_hit_ratio:rate5m < 0.3 and sum by (instance) (rate(vllm:prefix_cache_queries_total[5m])) > 1
+        for: 10m
+        labels: {severity: info, layer: serving}
+        annotations:
+          summary: "{{ $labels.instance }} prefix-cache hit rate {{ $value | humanizePercentage }}"
+          description: "The workload shares a long system prompt, so the hit rate should be high. Low means the shared prefix changed, is not first in the prompt, or cache is thrashing."
+
+  # ---------------------------------------------------------------------------- Demo service (RED)
+  - name: app-slo
+    rules:
+      # Multi-window, multi-burn-rate alerts for a 99% availability SLO (error budget = 1%).
+      # burn rate 14.4 = spending a 30-day budget in ~2 days (page). 6 = in 5 days (page/ticket).
+      # Both a long and a short window must exceed the threshold: long = "this is significant",
+      # short = "and it is still happening right now" (so the alert resets quickly after a fix).
+      - alert: AppSLOBurnRateFast
+        expr: |
+          app:ask_error_ratio:rate1h > (14.4 * 0.01)
+          and app:ask_error_ratio:rate5m > (14.4 * 0.01)
+        for: 1m
+        labels: {severity: page, layer: app, slo: ask-availability-99}
+        annotations:
+          summary: "Fast burn: {{ $value | humanizePercentage }} of /ask requests failing (budget 1%)"
+          description: "At this rate the 30-day error budget is gone in ~2 days. Open the app dashboard, filter traces by status=error."
+          prod_hint: "for: 2m; windows 1h+5m exactly as here"
+
+      - alert: AppSLOBurnRateSlow
+        expr: |
+          app:ask_error_ratio:rate6h > (6 * 0.01)
+          and app:ask_error_ratio:rate30m > (6 * 0.01)
+        for: 5m
+        labels: {severity: page, layer: app, slo: ask-availability-99}
+        annotations:
+          summary: "Slow burn: {{ $value | humanizePercentage }} of /ask requests failing over 6h"
+          description: "A smaller but sustained leak that would exhaust the budget in ~5 days."
+
+      - alert: AppLatencyP95High
+        expr: app:ask_latency_seconds:p95_5m > 30
+        for: 2m
+        labels: {severity: warning, layer: app}
+        annotations:
+          summary: "/ask p95 latency {{ $value | humanizeDuration }}"
+
+  # ------------------------------------------------------------------------------ Platform (USE)
+  - name: platform
+    rules:
+      - alert: TargetDown
+        expr: up{optional!="true"} == 0
+        for: 30s
+        labels: {severity: warning, layer: infra}
+        annotations:
+          summary: "Scrape target {{ $labels.job }}/{{ $labels.instance }} is down"
+          description: "Prometheus cannot scrape it. Everything derived from it is now blind. (targets labelled optional=true, e.g. vllm-extra, are exempt.)"
+          prod_hint: "for: 2-5m"
+
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes < 6e9
+        for: 2m
+        labels: {severity: warning, layer: infra}
+        annotations:
+          summary: "Only {{ $value | humanize1024 }}B of memory available"
+          description: "GB10 has UNIFIED memory: GPU allocations come out of the same pool as system RAM, so this is also the GPU memory alert."
+
+      - alert: GPUTemperatureHigh
+        expr: DCGM_FI_DEV_GPU_TEMP > 85
+        for: 2m
+        labels: {severity: warning, layer: infra}
+        annotations:
+          summary: "GPU at {{ $value }}C"
+
+      - alert: OTelCollectorDroppingTelemetry
+        expr: |
+          rate(otelcol_exporter_send_failed_spans__spans__total[2m]) > 0
+          or rate(otelcol_receiver_refused_spans__spans__total[2m]) > 0
+        for: 1m
+        labels: {severity: warning, layer: infra}
+        annotations:
+          summary: "OTel collector is failing to export/accept spans - traces are being lost"

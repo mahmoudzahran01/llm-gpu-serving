@@ -1,0 +1,114 @@
+# Observability stack for a single GPU host.
+#
+# Everything runs with network_mode: host. Why: the things we scrape are host processes or ports published only on
+# 127.0.0.1 (the vLLM servers, the demo service), which a bridge-network Prometheus cannot reach without touching
+# those services. All listeners bind 127.0.0.1 (reach them from your laptop with an SSH tunnel, see README), except
+# the OTLP receiver that a bridge-network vLLM container must reach on the docker0 gateway 172.17.0.1.
+#
+# Containers run as your uid so the bind-mounted ./data/* directories are readable/writable.
+# Required: GRAFANA_ADMIN_PASSWORD (copy .env.example to .env and set it; the file is git-ignored).
+name: obs
+
+x-user: &user "${OBS_UID:-1000}:${OBS_GID:-1000}"
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    network_mode: host
+    user: *user
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.listen-address=127.0.0.1:9090
+      - --web.enable-lifecycle              # POST /-/reload after editing rules
+      - --enable-feature=exemplar-storage   # keep trace_id exemplars (metrics -> traces)
+    volumes:
+      - ./prometheus:/etc/prometheus:ro        # directory mounts (not single files): editors/rsync replace files by rename,
+                                               # which a single-file bind mount would never see
+      - ./data/prometheus:/prometheus
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    network_mode: host
+    user: *user
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.listen-address=127.0.0.1:9093
+      - --cluster.listen-address=            # single node: no gossip port
+    volumes:
+      - ./alertmanager:/etc/alertmanager:ro
+      - ./data/alertmanager:/alertmanager
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    network_mode: host
+    user: *user
+    restart: unless-stopped
+    environment:
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "3030"           # 3000 is often taken by something else on a shared box
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in obs/.env}"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"      # lab only: read-only viewer without login, loopback-bound
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /dashboards/app.json
+      GF_PATHS_DATA: /gdata
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/dashboards:ro   # provisioned JSON stays read-only
+      - ./data/grafana:/gdata
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.131.0
+    network_mode: host
+    user: *user
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/collector.yml"]
+    volumes:
+      - ./otel:/etc/otelcol:ro
+      - ../runs/obs/logs:/logs:ro
+
+  tempo:
+    image: grafana/tempo:2.8.2
+    network_mode: host
+    user: *user
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./tempo:/etc/tempo:ro
+      - ./data/tempo:/var/tempo
+
+  loki:
+    image: grafana/loki:3.5.3
+    network_mode: host
+    user: *user
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./loki:/etc/loki:ro
+      - ./data/loki:/loki
+
+  dcgm-exporter:                # NVIDIA DCGM: on GB10 it provides util/power/temp/clocks/energy only (README)
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04
+    network_mode: host
+    gpus: all
+    cap_add: [SYS_ADMIN]
+    restart: unless-stopped
+    command: ["-a", "127.0.0.1:9400"]
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    network_mode: host
+    pid: host
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=127.0.0.1:9100
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|run|var/lib/docker/.+)($$|/)
+    volumes:
+      - /:/host:ro,rslave

@@ -1,0 +1,37 @@
+# Recording rules: pre-compute expensive / reused expressions once per evaluation interval.
+# Naming convention: level:metric:operations  (e.g. app:ask_error_ratio:rate5m)
+groups:
+  - name: app-sli
+    interval: 10s
+    rules:
+      # SLI: fraction of /ask requests that failed with a 5xx. The `or vector(0)` matters: when no 5xx series
+      # exists yet the numerator would be EMPTY and the whole ratio would vanish.
+      - record: app:ask_error_ratio:rate5m
+        expr: |
+          (sum(rate(llmapp_http_requests_total{route="/ask",status=~"5.."}[5m])) or vector(0))
+          / sum(rate(llmapp_http_requests_total{route="/ask"}[5m]))
+      - record: app:ask_error_ratio:rate30m
+        expr: |
+          (sum(rate(llmapp_http_requests_total{route="/ask",status=~"5.."}[30m])) or vector(0))
+          / sum(rate(llmapp_http_requests_total{route="/ask"}[30m]))
+      - record: app:ask_error_ratio:rate1h
+        expr: |
+          (sum(rate(llmapp_http_requests_total{route="/ask",status=~"5.."}[1h])) or vector(0))
+          / sum(rate(llmapp_http_requests_total{route="/ask"}[1h]))
+      - record: app:ask_error_ratio:rate6h
+        expr: |
+          (sum(rate(llmapp_http_requests_total{route="/ask",status=~"5.."}[6h])) or vector(0))
+          / sum(rate(llmapp_http_requests_total{route="/ask"}[6h]))
+      - record: app:ask_latency_seconds:p95_5m
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(llmapp_http_request_duration_seconds_bucket{route="/ask"}[5m])))
+  - name: llm-serving-recording
+    interval: 10s
+    rules:
+      - record: llm:ttft_seconds:p95_2m
+        expr: |
+          histogram_quantile(0.95, sum by (le, instance) (rate(vllm:time_to_first_token_seconds_bucket[2m])))
+      - record: llm:prefix_cache_hit_ratio:rate5m
+        expr: |
+          sum by (instance) (rate(vllm:prefix_cache_hits_total[5m]))
+          / sum by (instance) (rate(vllm:prefix_cache_queries_total[5m]))
